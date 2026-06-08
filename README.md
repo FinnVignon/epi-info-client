@@ -39,10 +39,14 @@ CLIENT_ENROLLMENT_TOKEN=the-single-use-token
 Then start the client:
 
 ```sh
+docker network create epi-info-network
 docker compose up --build
 ```
 
 The local display endpoint listens on `http://localhost:3000`.
+The network creation command is only needed once. Both the server and client
+Compose stacks join `epi-info-network`, and the client reaches the API through
+the stable `http://epi-info-server:4000` container hostname.
 
 The client stores its identity in the `client-data` Docker volume. After the
 first successful enrollment, remove `CLIENT_ENROLLMENT_TOKEN` from `.env`; the
