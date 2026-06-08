@@ -6,6 +6,13 @@ services:
       CLIENT_DISPLAY_PORT: 3000
       DISPLAY_DIST_PATH: /app/dist/display
       SERVER_BASE_URL: ${SERVER_BASE_URL:-http://host.docker.internal:4000}
+      CLIENT_NAME: ${CLIENT_NAME:-Epi Info Display}
+      CLIENT_ENROLLMENT_TOKEN: ${CLIENT_ENROLLMENT_TOKEN:-}
+      CLIENT_SOFTWARE_VERSION: ${CLIENT_SOFTWARE_VERSION:-0.1.0}
+      CLIENT_HEARTBEAT_INTERVAL_SECONDS: ${CLIENT_HEARTBEAT_INTERVAL_SECONDS:-30}
+      CLIENT_REQUEST_TIMEOUT_MS: ${CLIENT_REQUEST_TIMEOUT_MS:-10000}
+      CLIENT_RETRY_MIN_SECONDS: ${CLIENT_RETRY_MIN_SECONDS:-5}
+      CLIENT_RETRY_MAX_SECONDS: ${CLIENT_RETRY_MAX_SECONDS:-60}
       KIOSK_URL: ${KIOSK_URL:-http://localhost:3000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -16,4 +23,3 @@ services:
 
 volumes:
   client-data:
-

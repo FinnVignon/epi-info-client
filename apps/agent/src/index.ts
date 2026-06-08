@@ -1,81 +1,45 @@
-import cors from "cors";
-import express from "express";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
-
 import { readConfig } from "./config.js";
-import { Manifest, SUPPORTED_MANIFEST_ITEM_TYPES } from "../../shared/contracts.js";
+import { createClientConnection } from "./connection/clientConnection.js";
+import { createClientConnectionStatus } from "./connection/connectionStatus.js";
+import { createClientServerApi } from "./connection/serverApi.js";
+import { startLocalDisplayServer } from "./http/localDisplayServer.js";
+import { createClientIdentityStore } from "./storage/clientIdentityStore.js";
+import { createClientPaths } from "./storage/clientPaths.js";
+import { createManifestStore } from "./storage/manifestStore.js";
 
-const config = readConfig();
-const assetsPath = path.join(config.dataPath, "assets");
-const manifestsPath = path.join(config.dataPath, "manifests");
-const activeManifestPath = path.join(manifestsPath, "active-manifest.json");
+async function startAgent(): Promise<void> {
+  const config = readConfig();
+  const paths = createClientPaths(config.dataPath);
+  const manifestStore = createManifestStore(paths);
+  const connectionStatus = createClientConnectionStatus();
+  const identityStore = createClientIdentityStore(paths.identityPath);
+  const serverApi = createClientServerApi(config.serverBaseUrl, config.requestTimeoutMs);
+  const connection = createClientConnection({
+    api: serverApi,
+    config,
+    identityStore,
+    manifestStore,
+    status: connectionStatus,
+  });
+  const localServer = await startLocalDisplayServer({
+    config,
+    connectionStatus,
+    manifestStore,
+    paths,
+  });
 
-mkdirSync(assetsPath, { recursive: true });
-mkdirSync(manifestsPath, { recursive: true });
+  connection.start();
 
-const fallbackManifest: Manifest = {
-  id: "local-fallback",
-  items: [
-    {
-      durationSeconds: 30,
-      id: "fallback-text",
-      text: "No manifest assigned",
-      type: "text",
-    },
-  ],
-  name: "Local fallback",
-  version: 1,
-};
+  const shutdown = (): void => {
+    connection.stop();
+    localServer.close(() => process.exit(0));
+  };
 
-function readActiveManifest(): Manifest {
-  if (!existsSync(activeManifestPath)) {
-    writeFileSync(activeManifestPath, `${JSON.stringify(fallbackManifest, null, 2)}\n`, "utf8");
-    return fallbackManifest;
-  }
-
-  return JSON.parse(readFileSync(activeManifestPath, "utf8")) as Manifest;
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-app.use("/assets", express.static(assetsPath));
-
-app.get("/api/health", (_request, response) => {
-  response.json({
-    activeManifestPath,
-    kioskUrl: config.kioskUrl,
-    serverBaseUrl: config.serverBaseUrl,
-    service: "epi-info-client-agent",
-    supportedManifestItemTypes: SUPPORTED_MANIFEST_ITEM_TYPES,
-  });
+void startAgent().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
 });
-
-app.get("/api/manifest", (_request, response) => {
-  response.json(readActiveManifest());
-});
-
-if (config.displayDistPath && existsSync(config.displayDistPath)) {
-  const displayDistPath = path.resolve(config.displayDistPath);
-
-  app.use(express.static(displayDistPath));
-  app.get("*", (request, response, next) => {
-    if (request.path.startsWith("/api") || request.path.startsWith("/assets")) {
-      next();
-      return;
-    }
-
-    response.sendFile(path.join(displayDistPath, "index.html"));
-  });
-} else {
-  app.get("/", (_request, response) => {
-    response.type("html").send("<!doctype html><title>Epi Info Client</title><div id=\"root\"></div>");
-  });
-}
-
-app.listen(config.displayPort, () => {
-  console.log(`Epi Info client agent listening on port ${config.displayPort}`);
-});
-
