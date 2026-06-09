@@ -1,9 +1,15 @@
+import { createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+
 import type {
   ClientHeartbeatRequest,
   ClientHeartbeatResponse,
+  EffectiveManifestResponse,
   RegisterClientRequest,
   RegisterClientResponse,
 } from "../../../shared/clientContracts.js";
+import { isManifest } from "../manifest/manifestValidation.js";
 import type { ClientIdentity } from "../storage/clientIdentityStore.js";
 
 export class ServerApiError extends Error {
@@ -17,6 +23,12 @@ export class ServerApiError extends Error {
 }
 
 export interface ClientServerApi {
+  downloadAsset(
+    identity: ClientIdentity,
+    remoteUrl: string,
+    destinationPath: string,
+  ): Promise<void>;
+  getEffectiveManifest(identity: ClientIdentity): Promise<EffectiveManifestResponse>;
   register(request: RegisterClientRequest): Promise<RegisterClientResponse>;
   sendHeartbeat(
     identity: ClientIdentity,
@@ -27,11 +39,46 @@ export interface ClientServerApi {
 export function createClientServerApi(
   serverBaseUrl: string,
   requestTimeoutMs: number,
+  assetDownloadTimeoutMs: number,
 ): ClientServerApi {
+  const normalizedServerBaseUrl = serverBaseUrl.replace(/\/+$/, "");
+
   return {
+    async downloadAsset(
+      identity: ClientIdentity,
+      remoteUrl: string,
+      destinationPath: string,
+    ): Promise<void> {
+      await downloadAuthenticatedFile(
+        resolveServerAssetUrl(normalizedServerBaseUrl, remoteUrl),
+        {
+          Authorization: `Bearer ${identity.clientSecret}`,
+          "X-Client-Id": identity.clientId,
+        },
+        destinationPath,
+        assetDownloadTimeoutMs,
+      );
+    },
+
+    async getEffectiveManifest(identity: ClientIdentity): Promise<EffectiveManifestResponse> {
+      const response = await requestJson(
+        `${normalizedServerBaseUrl}/api/clients/manifest`,
+        {
+          headers: {
+            Authorization: `Bearer ${identity.clientSecret}`,
+            "X-Client-Id": identity.clientId,
+          },
+          method: "GET",
+        },
+        requestTimeoutMs,
+      );
+
+      return readEffectiveManifestResponse(response);
+    },
+
     async register(request: RegisterClientRequest): Promise<RegisterClientResponse> {
       const response = await requestJson(
-        `${serverBaseUrl}/api/clients/register`,
+        `${normalizedServerBaseUrl}/api/clients/register`,
         {
           body: JSON.stringify(request),
           headers: {
@@ -50,7 +97,7 @@ export function createClientServerApi(
       request: ClientHeartbeatRequest,
     ): Promise<ClientHeartbeatResponse> {
       const response = await requestJson(
-        `${serverBaseUrl}/api/clients/heartbeat`,
+        `${normalizedServerBaseUrl}/api/clients/heartbeat`,
         {
           body: JSON.stringify(request),
           headers: {
@@ -66,6 +113,53 @@ export function createClientServerApi(
       return readHeartbeatResponse(response);
     },
   };
+}
+
+async function downloadAuthenticatedFile(
+  url: string,
+  headers: Record<string, string>,
+  destinationPath: string,
+  requestTimeoutMs: number,
+): Promise<void> {
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), requestTimeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      headers,
+      method: "GET",
+      signal: abortController.signal,
+    });
+
+    if (!response.ok) {
+      throw new ServerApiError(
+        readErrorMessage(await readResponseBody(response)),
+        response.status,
+        readRetryAfterSeconds(response.headers.get("retry-after")),
+      );
+    }
+
+    if (!response.body) {
+      throw new ServerApiError("Server returned an empty asset response", response.status);
+    }
+
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(destinationPath));
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new ServerApiError("Server request timed out", null);
+    }
+
+    throw new ServerApiError(
+      error instanceof Error ? error.message : "Unable to download asset",
+      null,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function requestJson(
@@ -153,6 +247,37 @@ function readHeartbeatResponse(value: unknown): ClientHeartbeatResponse {
     heartbeatIntervalSeconds: response.heartbeatIntervalSeconds,
     serverTime: response.serverTime,
   };
+}
+
+function readEffectiveManifestResponse(value: unknown): EffectiveManifestResponse {
+  if (typeof value !== "object" || value === null || !("manifest" in value)) {
+    throw new ServerApiError("Server returned an invalid manifest response", 200);
+  }
+
+  const response = value as Partial<EffectiveManifestResponse>;
+
+  if (response.manifest !== null && !isManifest(response.manifest)) {
+    throw new ServerApiError("Server returned an invalid manifest response", 200);
+  }
+
+  return {
+    manifest: response.manifest ?? null,
+  };
+}
+
+function resolveServerAssetUrl(serverBaseUrl: string, remoteUrl: string): string {
+  const baseUrl = new URL(`${serverBaseUrl}/`);
+  const assetUrl = new URL(remoteUrl, baseUrl);
+
+  if (assetUrl.origin !== baseUrl.origin) {
+    throw new ServerApiError("Manifest asset URL must use the configured server origin", 200);
+  }
+
+  if (!assetUrl.pathname.startsWith("/api/clients/assets/")) {
+    throw new ServerApiError("Manifest asset URL is not a client asset endpoint", 200);
+  }
+
+  return assetUrl.toString();
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {

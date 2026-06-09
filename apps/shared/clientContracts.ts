@@ -1,3 +1,5 @@
+import type { Manifest } from "./contracts.js";
+
 export interface RegisterClientRequest {
   enrollmentToken: string;
   name: string;
@@ -21,4 +23,8 @@ export interface ClientHeartbeatRequest {
 export interface ClientHeartbeatResponse {
   heartbeatIntervalSeconds: number;
   serverTime: string;
+}
+
+export interface EffectiveManifestResponse {
+  manifest: Manifest | null;
 }

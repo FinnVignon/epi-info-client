@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { rename, writeFile } from "node:fs/promises";
 
 import type { Manifest } from "../../../shared/contracts.js";
+import { isManifest } from "../manifest/manifestValidation.js";
 import type { ClientPaths } from "./clientPaths.js";
 
 const FALLBACK_MANIFEST: Manifest = {
@@ -18,6 +20,7 @@ const FALLBACK_MANIFEST: Manifest = {
 };
 
 export interface ManifestStore {
+  activateManifest(manifest: Manifest): Promise<void>;
   getActiveManifest(): Manifest;
 }
 
@@ -34,6 +37,16 @@ export function createManifestStore(paths: ClientPaths): ManifestStore {
   }
 
   return {
+    async activateManifest(manifest: Manifest): Promise<void> {
+      const temporaryManifestPath = `${paths.activeManifestPath}.tmp`;
+
+      await writeFile(temporaryManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o644,
+      });
+      await rename(temporaryManifestPath, paths.activeManifestPath);
+    },
+
     getActiveManifest(): Manifest {
       try {
         const manifest = JSON.parse(readFileSync(paths.activeManifestPath, "utf8")) as unknown;
@@ -44,20 +57,4 @@ export function createManifestStore(paths: ClientPaths): ManifestStore {
       }
     },
   };
-}
-
-function isManifest(value: unknown): value is Manifest {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const manifest = value as Partial<Manifest>;
-
-  return (
-    typeof manifest.id === "string" &&
-    manifest.id.length > 0 &&
-    typeof manifest.name === "string" &&
-    Number.isSafeInteger(manifest.version) &&
-    Array.isArray(manifest.items)
-  );
 }

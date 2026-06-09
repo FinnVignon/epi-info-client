@@ -56,6 +56,11 @@ The local display starts before server enrollment or heartbeat attempts. If the
 server is unavailable, the display remains available and the agent retries with
 bounded exponential backoff.
 
+Manifest media is downloaded to a temporary file, checked against its expected
+SHA-256 hash, and only then made available to the display. The previous active
+manifest remains unchanged if synchronization fails. Large media downloads use
+`CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS`, which defaults to five minutes.
+
 ## Local Agent API
 
 - `GET /api/health` reports local display and server-connection status without
