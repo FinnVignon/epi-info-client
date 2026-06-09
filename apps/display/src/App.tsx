@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Manifest, ManifestItem } from "../../shared/contracts";
 import "./App.css";
@@ -6,13 +6,7 @@ import "./App.css";
 function renderItem(item: ManifestItem) {
   switch (item.type) {
     case "image":
-      return (
-        <img
-          alt=""
-          className={`display-media ${item.fit}`}
-          src={item.localPath}
-        />
-      );
+      return <img alt="" className={`display-media ${item.fit}`} src={item.localPath} />;
     case "video":
       return (
         <video
@@ -36,31 +30,67 @@ function renderItem(item: ManifestItem) {
 }
 
 export function App() {
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState(false);
-  const activeItem = useMemo(() => manifest?.items[0] ?? null, [manifest]);
+  const hasManifest = useRef(false);
+  const manifestKey = manifest ? `${manifest.id}:${manifest.version}` : "none";
+  const activeItem = useMemo(
+    () => manifest?.items[activeItemIndex % Math.max(1, manifest.items.length)] ?? null,
+    [activeItemIndex, manifest],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadManifest() {
       try {
-        const response = await fetch("/api/manifest");
+        const response = await fetch("/api/manifest", { cache: "no-store" });
         const body = (await response.json()) as Manifest;
 
         if (!cancelled) {
-          setManifest(body);
+          hasManifest.current = true;
+          setManifest((currentManifest) =>
+            currentManifest?.id === body.id && currentManifest.version === body.version
+              ? currentManifest
+              : body,
+          );
           setError(false);
         }
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !hasManifest.current) {
           setError(true);
         }
       }
     }
 
     void loadManifest();
+    const interval = window.setInterval(() => void loadManifest(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, []);
+
+  useEffect(() => {
+    setActiveItemIndex(0);
+  }, [manifestKey]);
+
+  useEffect(() => {
+    if (!manifest || manifest.items.length <= 1 || !activeItem) {
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () => {
+        setActiveItemIndex((currentIndex) => (currentIndex + 1) % manifest.items.length);
+      },
+      Math.max(1, activeItem.durationSeconds) * 1000,
+    );
+
+    return () => window.clearTimeout(timeout);
+  }, [activeItem, manifest]);
 
   if (error) {
     return (
@@ -80,4 +110,3 @@ export function App() {
 
   return <main className="display-shell">{renderItem(activeItem)}</main>;
 }
-

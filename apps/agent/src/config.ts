@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 export interface ClientConfig {
+  assetDownloadTimeoutMs: number;
   clientName: string;
   dataPath: string;
   displayDistPath?: string;
@@ -51,6 +52,7 @@ export function readConfig(): ClientConfig {
   }
 
   return {
+    assetDownloadTimeoutMs: readPositiveNumber("CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS", 300_000),
     clientName: process.env.CLIENT_NAME?.trim() || "Epi Info Display",
     dataPath: process.env.CLIENT_DATA_PATH ?? "./data",
     displayDistPath: process.env.DISPLAY_DIST_PATH,

@@ -2,6 +2,7 @@ import type { ClientConfig } from "../config.js";
 import type { ClientIdentity, ClientIdentityStore } from "../storage/clientIdentityStore.js";
 import type { ManifestStore } from "../storage/manifestStore.js";
 import type { ClientConnectionStatus } from "./connectionStatus.js";
+import type { ManifestSynchronizer } from "./manifestSync.js";
 import { ServerApiError, type ClientServerApi } from "./serverApi.js";
 
 export interface ClientConnection {
@@ -14,6 +15,7 @@ interface ClientConnectionDependencies {
   config: ClientConfig;
   identityStore: ClientIdentityStore;
   manifestStore: ManifestStore;
+  manifestSynchronizer: ManifestSynchronizer;
   status: ClientConnectionStatus;
 }
 
@@ -22,6 +24,7 @@ export function createClientConnection({
   config,
   identityStore,
   manifestStore,
+  manifestSynchronizer,
   status,
 }: ClientConnectionDependencies): ClientConnection {
   let retrySeconds = config.retryMinSeconds;
@@ -158,18 +161,19 @@ export function createClientConnection({
       });
 
       try {
+        const syncResult = await syncManifest(identity);
         const manifest = manifestStore.getActiveManifest();
         const response = await api.sendHeartbeat(identity, {
           currentManifestId: manifest.id,
           currentManifestVersion: manifest.version,
-          lastError: null,
-          lastSyncResult: "not_started",
+          lastError: syncResult.lastError,
+          lastSyncResult: syncResult.lastSyncResult,
           softwareVersion: config.softwareVersion,
         });
 
         retrySeconds = config.retryMinSeconds;
         status.update({
-          lastError: null,
+          lastError: syncResult.lastError,
           lastSuccessfulHeartbeatAt: new Date().toISOString(),
           state: "connected",
         });
@@ -222,6 +226,24 @@ export function createClientConnection({
     retrySeconds = Math.min(config.retryMaxSeconds, retrySeconds * 2);
 
     return currentDelay;
+  }
+
+  async function syncManifest(identity: ClientIdentity): Promise<{
+    lastError: string | null;
+    lastSyncResult: string;
+  }> {
+    try {
+      return await manifestSynchronizer.sync(identity);
+    } catch (error) {
+      const message = readErrorMessage(error);
+
+      console.warn(`Client manifest sync failed: ${message}`);
+
+      return {
+        lastError: message,
+        lastSyncResult: "sync_failed",
+      };
+    }
   }
 }
 

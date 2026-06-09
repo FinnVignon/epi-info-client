@@ -41,6 +41,7 @@ export async function startLocalDisplayServer({
   });
 
   app.get("/api/manifest", (_request, response) => {
+    response.setHeader("Cache-Control", "no-store");
     response.json(manifestStore.getActiveManifest());
   });
 
