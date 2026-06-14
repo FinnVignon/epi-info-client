@@ -66,3 +66,14 @@ manifest remains unchanged if synchronization fails. Large media downloads use
 - `GET /api/health` reports local display and server-connection status without
   exposing the client secret.
 - `GET /api/manifest` returns the active local manifest.
+
+## Planned Sync Notifications
+
+Add a temporary on-screen notification driven by local agent state:
+
+- show progress only while a manifest or asset is downloading or being verified;
+- show activation success or synchronization failure for a few seconds;
+- keep cached content playing behind the notification;
+- include safe setup details such as manifest version, progress, and an error
+  summary without credentials;
+- show nothing while the client is idle and up to date.
