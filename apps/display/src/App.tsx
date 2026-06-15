@@ -3,10 +3,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Manifest, ManifestItem } from "../../shared/contracts";
 import "./App.css";
 
-function renderItem(item: ManifestItem) {
+interface DisplayItemProps {
+  item: ManifestItem;
+  onDisplayed: () => void;
+}
+
+function DisplayItem({ item, onDisplayed }: DisplayItemProps) {
   switch (item.type) {
     case "image":
-      return <img alt="" className={`display-media ${item.fit}`} src={item.localPath} />;
+      return (
+        <img
+          alt=""
+          className={`display-media ${item.fit}`}
+          onLoad={onDisplayed}
+          src={item.localPath}
+        />
+      );
     case "video":
       return (
         <video
@@ -14,25 +26,42 @@ function renderItem(item: ManifestItem) {
           className={`display-media ${item.fit}`}
           loop
           muted
+          onCanPlay={onDisplayed}
           playsInline
           src={item.localPath}
         />
       );
     case "text":
-      return (
-        <div className="display-text">
-          <p>{item.text}</p>
-        </div>
-      );
+      return <TextDisplayItem onDisplayed={onDisplayed} text={item.text} />;
     case "webpage":
-      return <iframe className="display-webpage" src={item.url} title="Epi Info web page item" />;
+      return (
+        <iframe
+          className="display-webpage"
+          onLoad={onDisplayed}
+          src={item.url}
+          title="Epi Info web page item"
+        />
+      );
   }
+}
+
+function TextDisplayItem({ onDisplayed, text }: { onDisplayed: () => void; text: string }) {
+  useEffect(() => {
+    onDisplayed();
+  }, [onDisplayed]);
+
+  return (
+    <div className="display-text">
+      <p>{text}</p>
+    </div>
+  );
 }
 
 export function App() {
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState(false);
+  const acknowledgedManifestKey = useRef<string | null>(null);
   const hasManifest = useRef(false);
   const manifestKey = manifest ? `${manifest.id}:${manifest.version}` : "none";
   const activeItem = useMemo(
@@ -77,6 +106,31 @@ export function App() {
     setActiveItemIndex(0);
   }, [manifestKey]);
 
+  async function acknowledgeDisplayedManifest(): Promise<void> {
+    if (!manifest || acknowledgedManifestKey.current === manifestKey) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/manifest/displayed", {
+        body: JSON.stringify({
+          manifestId: manifest.id,
+          manifestVersion: manifest.version,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (response.ok) {
+        acknowledgedManifestKey.current = manifestKey;
+      }
+    } catch {
+      // The display keeps retrying through normal media load events and manifest polling.
+    }
+  }
+
   useEffect(() => {
     if (!manifest || manifest.items.length <= 1 || !activeItem) {
       return;
@@ -108,5 +162,9 @@ export function App() {
     );
   }
 
-  return <main className="display-shell">{renderItem(activeItem)}</main>;
+  return (
+    <main className="display-shell">
+      <DisplayItem item={activeItem} onDisplayed={() => void acknowledgeDisplayedManifest()} />
+    </main>
+  );
 }

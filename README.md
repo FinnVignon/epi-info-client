@@ -58,7 +58,9 @@ bounded exponential backoff.
 
 Manifest media is downloaded to a temporary file, checked against its expected
 SHA-256 hash, and only then made available to the display. The previous active
-manifest remains unchanged if synchronization fails. Large media downloads use
+manifest remains unchanged if synchronization fails. After a new manifest is
+activated and the display confirms that it rendered the new content, cached
+media that it no longer references is removed. Large media downloads use
 `CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS`, which defaults to five minutes.
 
 ## Local Agent API
@@ -66,6 +68,8 @@ manifest remains unchanged if synchronization fails. Large media downloads use
 - `GET /api/health` reports local display and server-connection status without
   exposing the client secret.
 - `GET /api/manifest` returns the active local manifest.
+- `POST /api/manifest/displayed` confirms that the local display rendered the
+  active manifest and allows obsolete cached media to be removed.
 
 ## Planned Sync Notifications
 
@@ -74,6 +78,6 @@ Add a temporary on-screen notification driven by local agent state:
 - show progress only while a manifest or asset is downloading or being verified;
 - show activation success or synchronization failure for a few seconds;
 - keep cached content playing behind the notification;
-- include safe setup details such as manifest version, progress, and an error
+- include safe setup details such as manifest identity, progress, and an error
   summary without credentials;
 - show nothing while the client is idle and up to date.

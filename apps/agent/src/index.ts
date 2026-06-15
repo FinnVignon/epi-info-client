@@ -38,6 +38,7 @@ async function startAgent(): Promise<void> {
     status: connectionStatus,
   });
   const localServer = await startLocalDisplayServer({
+    assetCache,
     config,
     connectionStatus,
     manifestStore,

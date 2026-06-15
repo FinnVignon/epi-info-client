@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import type { Manifest, MediaManifestItem } from "../../../shared/contracts.js";
@@ -9,6 +9,7 @@ import type { ClientIdentity } from "./clientIdentityStore.js";
 import type { ClientPaths } from "./clientPaths.js";
 
 export interface AssetCache {
+  deleteAssetsNotInManifest(manifest: Manifest): Promise<void>;
   ensureManifestAssets(identity: ClientIdentity, manifest: Manifest): Promise<void>;
 }
 
@@ -19,6 +20,16 @@ interface AssetCacheDependencies {
 
 export function createAssetCache({ api, paths }: AssetCacheDependencies): AssetCache {
   return {
+    async deleteAssetsNotInManifest(manifest: Manifest): Promise<void> {
+      const retainedAssetPaths = new Set(
+        manifest.items
+          .filter(isMediaItem)
+          .map((item) => resolveLocalAssetPath(paths.assetsPath, item.localPath)),
+      );
+
+      await removeUnusedFiles(paths.assetsPath, retainedAssetPaths);
+    },
+
     async ensureManifestAssets(identity: ClientIdentity, manifest: Manifest): Promise<void> {
       const mediaItems = manifest.items.filter(isMediaItem);
 
@@ -49,6 +60,28 @@ export function createAssetCache({ api, paths }: AssetCacheDependencies): AssetC
       await rename(temporaryPath, assetPath);
     } finally {
       await rm(temporaryPath, { force: true });
+    }
+  }
+}
+
+async function removeUnusedFiles(directoryPath: string, retainedPaths: Set<string>): Promise<void> {
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = path.join(directoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      await removeUnusedFiles(entryPath, retainedPaths);
+
+      if ((await readdir(entryPath)).length === 0) {
+        await rm(entryPath, { recursive: true });
+      }
+
+      continue;
+    }
+
+    if (!retainedPaths.has(entryPath)) {
+      await rm(entryPath, { force: true });
     }
   }
 }
