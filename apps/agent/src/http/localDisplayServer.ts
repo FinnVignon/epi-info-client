@@ -7,6 +7,7 @@ import type { Server } from "node:http";
 import { SUPPORTED_MANIFEST_ITEM_TYPES } from "../../../shared/contracts.js";
 import type { ClientConfig } from "../config.js";
 import type { ClientConnectionStatus } from "../connection/connectionStatus.js";
+import type { SyncNotificationManager } from "../connection/syncNotifications.js";
 import type { AssetCache } from "../storage/assetCache.js";
 import type { ClientPaths } from "../storage/clientPaths.js";
 import type { ManifestStore } from "../storage/manifestStore.js";
@@ -17,6 +18,7 @@ interface LocalDisplayServerDependencies {
   connectionStatus: ClientConnectionStatus;
   manifestStore: ManifestStore;
   paths: ClientPaths;
+  syncNotifications: SyncNotificationManager;
 }
 
 export async function startLocalDisplayServer({
@@ -25,6 +27,7 @@ export async function startLocalDisplayServer({
   connectionStatus,
   manifestStore,
   paths,
+  syncNotifications,
 }: LocalDisplayServerDependencies): Promise<Server> {
   const app = express();
 
@@ -48,6 +51,11 @@ export async function startLocalDisplayServer({
     response.json(manifestStore.getActiveManifest());
   });
 
+  app.get("/api/sync/notification", (_request, response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.json(syncNotifications.getSnapshot());
+  });
+
   app.post("/api/manifest/displayed", async (request, response, next) => {
     try {
       const activeManifest = manifestStore.getActiveManifest();
@@ -61,6 +69,7 @@ export async function startLocalDisplayServer({
       }
 
       await assetCache.deleteAssetsNotInManifest(activeManifest);
+      syncNotifications.markDisplayed(activeManifest);
       response.status(204).send();
     } catch (error) {
       next(error);

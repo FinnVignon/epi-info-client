@@ -8,9 +8,24 @@ import type { ClientServerApi } from "../connection/serverApi.js";
 import type { ClientIdentity } from "./clientIdentityStore.js";
 import type { ClientPaths } from "./clientPaths.js";
 
+export type AssetCacheProgressPhase = "checking" | "downloading" | "verifying";
+
+export interface AssetCacheProgress {
+  completedAssets: number;
+  currentAssetId: string;
+  phase: AssetCacheProgressPhase;
+  totalAssets: number;
+}
+
+export type AssetCacheProgressHandler = (progress: AssetCacheProgress) => void;
+
 export interface AssetCache {
   deleteAssetsNotInManifest(manifest: Manifest): Promise<void>;
-  ensureManifestAssets(identity: ClientIdentity, manifest: Manifest): Promise<void>;
+  ensureManifestAssets(
+    identity: ClientIdentity,
+    manifest: Manifest,
+    onProgress?: AssetCacheProgressHandler,
+  ): Promise<void>;
 }
 
 interface AssetCacheDependencies {
@@ -30,19 +45,37 @@ export function createAssetCache({ api, paths }: AssetCacheDependencies): AssetC
       await removeUnusedFiles(paths.assetsPath, retainedAssetPaths);
     },
 
-    async ensureManifestAssets(identity: ClientIdentity, manifest: Manifest): Promise<void> {
-      const mediaItems = manifest.items.filter(isMediaItem);
+    async ensureManifestAssets(
+      identity: ClientIdentity,
+      manifest: Manifest,
+      onProgress?: AssetCacheProgressHandler,
+    ): Promise<void> {
+      const mediaItems = collectUniqueMediaItems(manifest);
+      let completedAssets = 0;
 
       for (const item of mediaItems) {
-        await ensureAsset(identity, item);
+        await ensureAsset(identity, item, (phase) => {
+          onProgress?.({
+            completedAssets,
+            currentAssetId: item.assetId,
+            phase,
+            totalAssets: mediaItems.length,
+          });
+        });
+        completedAssets += 1;
       }
     },
   };
 
-  async function ensureAsset(identity: ClientIdentity, item: MediaManifestItem): Promise<void> {
+  async function ensureAsset(
+    identity: ClientIdentity,
+    item: MediaManifestItem,
+    onPhaseChange: (phase: AssetCacheProgressPhase) => void,
+  ): Promise<void> {
     const assetPath = resolveLocalAssetPath(paths.assetsPath, item.localPath);
 
     await mkdir(path.dirname(assetPath), { recursive: true });
+    onPhaseChange("checking");
 
     if (await doesFileMatchHash(assetPath, item.sha256)) {
       return;
@@ -51,8 +84,10 @@ export function createAssetCache({ api, paths }: AssetCacheDependencies): AssetC
     const temporaryPath = `${assetPath}.${randomUUID()}.download`;
 
     try {
+      onPhaseChange("downloading");
       await api.downloadAsset(identity, item.remoteUrl, temporaryPath);
 
+      onPhaseChange("verifying");
       if (!(await doesFileMatchHash(temporaryPath, item.sha256))) {
         throw new Error(`Downloaded asset ${item.assetId} failed SHA-256 verification`);
       }
@@ -62,6 +97,18 @@ export function createAssetCache({ api, paths }: AssetCacheDependencies): AssetC
       await rm(temporaryPath, { force: true });
     }
   }
+}
+
+function collectUniqueMediaItems(manifest: Manifest): MediaManifestItem[] {
+  const uniqueItems = new Map<string, MediaManifestItem>();
+
+  for (const item of manifest.items) {
+    if (isMediaItem(item)) {
+      uniqueItems.set(`${item.assetId}:${item.localPath}:${item.sha256}`, item);
+    }
+  }
+
+  return [...uniqueItems.values()];
 }
 
 async function removeUnusedFiles(directoryPath: string, retainedPaths: Set<string>): Promise<void> {

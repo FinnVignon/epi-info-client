@@ -3,6 +3,7 @@ import { createClientConnection } from "./connection/clientConnection.js";
 import { createClientConnectionStatus } from "./connection/connectionStatus.js";
 import { createManifestSynchronizer } from "./connection/manifestSync.js";
 import { createClientServerApi } from "./connection/serverApi.js";
+import { createSyncNotificationManager } from "./connection/syncNotifications.js";
 import { startLocalDisplayServer } from "./http/localDisplayServer.js";
 import { createAssetCache } from "./storage/assetCache.js";
 import { createClientIdentityStore } from "./storage/clientIdentityStore.js";
@@ -14,6 +15,7 @@ async function startAgent(): Promise<void> {
   const paths = createClientPaths(config.dataPath);
   const manifestStore = createManifestStore(paths);
   const connectionStatus = createClientConnectionStatus();
+  const syncNotifications = createSyncNotificationManager();
   const identityStore = createClientIdentityStore(paths.identityPath);
   const serverApi = createClientServerApi(
     config.serverBaseUrl,
@@ -28,6 +30,7 @@ async function startAgent(): Promise<void> {
     api: serverApi,
     assetCache,
     manifestStore,
+    notifications: syncNotifications,
   });
   const connection = createClientConnection({
     api: serverApi,
@@ -43,6 +46,7 @@ async function startAgent(): Promise<void> {
     connectionStatus,
     manifestStore,
     paths,
+    syncNotifications,
   });
 
   connection.start();

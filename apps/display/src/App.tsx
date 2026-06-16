@@ -1,65 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Manifest, ManifestItem } from "../../shared/contracts";
+import type { Manifest } from "../../shared/contracts";
+import type { SyncNotificationSnapshot } from "../../shared/localDisplayContracts";
+import {
+  acknowledgeDisplayedManifest as sendDisplayedManifestAcknowledgement,
+  loadActiveManifest,
+  loadSyncNotification,
+} from "./api/localAgentApi";
+import { DisplayItem } from "./components/DisplayItem";
+import { SyncNotificationOverlay } from "./components/SyncNotificationOverlay";
 import "./App.css";
-
-interface DisplayItemProps {
-  item: ManifestItem;
-  onDisplayed: () => void;
-}
-
-function DisplayItem({ item, onDisplayed }: DisplayItemProps) {
-  switch (item.type) {
-    case "image":
-      return (
-        <img
-          alt=""
-          className={`display-media ${item.fit}`}
-          onLoad={onDisplayed}
-          src={item.localPath}
-        />
-      );
-    case "video":
-      return (
-        <video
-          autoPlay
-          className={`display-media ${item.fit}`}
-          loop
-          muted
-          onCanPlay={onDisplayed}
-          playsInline
-          src={item.localPath}
-        />
-      );
-    case "text":
-      return <TextDisplayItem onDisplayed={onDisplayed} text={item.text} />;
-    case "webpage":
-      return (
-        <iframe
-          className="display-webpage"
-          onLoad={onDisplayed}
-          src={item.url}
-          title="Epi Info web page item"
-        />
-      );
-  }
-}
-
-function TextDisplayItem({ onDisplayed, text }: { onDisplayed: () => void; text: string }) {
-  useEffect(() => {
-    onDisplayed();
-  }, [onDisplayed]);
-
-  return (
-    <div className="display-text">
-      <p>{text}</p>
-    </div>
-  );
-}
 
 export function App() {
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [notification, setNotification] = useState<SyncNotificationSnapshot | null>(null);
   const [error, setError] = useState(false);
   const acknowledgedManifestKey = useRef<string | null>(null);
   const hasManifest = useRef(false);
@@ -74,8 +29,7 @@ export function App() {
 
     async function loadManifest() {
       try {
-        const response = await fetch("/api/manifest", { cache: "no-store" });
-        const body = (await response.json()) as Manifest;
+        const body = await loadActiveManifest();
 
         if (!cancelled) {
           hasManifest.current = true;
@@ -103,33 +57,48 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function refreshNotification() {
+      try {
+        const nextNotification = await loadSyncNotification();
+
+        if (!cancelled) {
+          setNotification(nextNotification);
+        }
+      } catch {
+        if (!cancelled) {
+          setNotification(null);
+        }
+      }
+    }
+
+    void refreshNotification();
+    const interval = window.setInterval(() => void refreshNotification(), 250);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
     setActiveItemIndex(0);
   }, [manifestKey]);
 
-  async function acknowledgeDisplayedManifest(): Promise<void> {
+  const acknowledgeDisplayedManifest = useCallback(async (): Promise<void> => {
     if (!manifest || acknowledgedManifestKey.current === manifestKey) {
       return;
     }
 
     try {
-      const response = await fetch("/api/manifest/displayed", {
-        body: JSON.stringify({
-          manifestId: manifest.id,
-          manifestVersion: manifest.version,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      });
-
-      if (response.ok) {
+      if (await sendDisplayedManifestAcknowledgement(manifest)) {
         acknowledgedManifestKey.current = manifestKey;
       }
     } catch {
       // The display keeps retrying through normal media load events and manifest polling.
     }
-  }
+  }, [manifest, manifestKey]);
 
   useEffect(() => {
     if (!manifest || manifest.items.length <= 1 || !activeItem) {
@@ -146,25 +115,28 @@ export function App() {
     return () => window.clearTimeout(timeout);
   }, [activeItem, manifest]);
 
-  if (error) {
-    return (
-      <main className="display-shell">
-        <span className="display-state">No local manifest available</span>
-      </main>
-    );
-  }
+  function renderDisplayContent() {
+    if (error) {
+      return <span className="display-state">No local manifest available</span>;
+    }
 
-  if (!activeItem) {
+    if (!activeItem) {
+      return <span className="display-state">Loading display</span>;
+    }
+
     return (
-      <main className="display-shell">
-        <span className="display-state">Loading display</span>
-      </main>
+      <DisplayItem
+        key={`${manifestKey}:${activeItem.id}`}
+        item={activeItem}
+        onDisplayed={() => void acknowledgeDisplayedManifest()}
+      />
     );
   }
 
   return (
     <main className="display-shell">
-      <DisplayItem item={activeItem} onDisplayed={() => void acknowledgeDisplayedManifest()} />
+      {renderDisplayContent()}
+      <SyncNotificationOverlay notification={notification} />
     </main>
   );
 }

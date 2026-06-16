@@ -9,6 +9,7 @@ This repository contains:
 - one-time enrollment with the Epi Info server;
 - persistent client identity and authenticated heartbeats;
 - persistent local caching for manifests and assets;
+- temporary sync notifications on the local display;
 - Docker runtime support for screen devices;
 - Chromium kiosk integration guidance.
 
@@ -63,21 +64,20 @@ activated and the display confirms that it rendered the new content, cached
 media that it no longer references is removed. Large media downloads use
 `CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS`, which defaults to five minutes.
 
+When the agent receives a changed assignment from the server, the display shows
+a small overlay. The overlay stays visible while the client checks, downloads,
+verifies, activates, and waits for the screen to render the new manifest. After
+the display confirms that the new content rendered, the overlay switches to
+success and clears after about one second. If the update fails, the overlay
+switches to a failure state and remains visible until the next sync replaces it.
+Cached content continues playing behind the overlay.
+
 ## Local Agent API
 
 - `GET /api/health` reports local display and server-connection status without
   exposing the client secret.
 - `GET /api/manifest` returns the active local manifest.
+- `GET /api/sync/notification` returns the current temporary sync notification,
+  or `null` when the client is idle.
 - `POST /api/manifest/displayed` confirms that the local display rendered the
   active manifest and allows obsolete cached media to be removed.
-
-## Planned Sync Notifications
-
-Add a temporary on-screen notification driven by local agent state:
-
-- show progress only while a manifest or asset is downloading or being verified;
-- show activation success or synchronization failure for a few seconds;
-- keep cached content playing behind the notification;
-- include safe setup details such as manifest identity, progress, and an error
-  summary without credentials;
-- show nothing while the client is idle and up to date.
