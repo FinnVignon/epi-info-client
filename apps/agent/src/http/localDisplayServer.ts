@@ -7,21 +7,27 @@ import type { Server } from "node:http";
 import { SUPPORTED_MANIFEST_ITEM_TYPES } from "../../../shared/contracts.js";
 import type { ClientConfig } from "../config.js";
 import type { ClientConnectionStatus } from "../connection/connectionStatus.js";
+import type { SyncNotificationManager } from "../connection/syncNotifications.js";
+import type { AssetCache } from "../storage/assetCache.js";
 import type { ClientPaths } from "../storage/clientPaths.js";
 import type { ManifestStore } from "../storage/manifestStore.js";
 
 interface LocalDisplayServerDependencies {
+  assetCache: AssetCache;
   config: ClientConfig;
   connectionStatus: ClientConnectionStatus;
   manifestStore: ManifestStore;
   paths: ClientPaths;
+  syncNotifications: SyncNotificationManager;
 }
 
 export async function startLocalDisplayServer({
+  assetCache,
   config,
   connectionStatus,
   manifestStore,
   paths,
+  syncNotifications,
 }: LocalDisplayServerDependencies): Promise<Server> {
   const app = express();
 
@@ -43,6 +49,31 @@ export async function startLocalDisplayServer({
   app.get("/api/manifest", (_request, response) => {
     response.setHeader("Cache-Control", "no-store");
     response.json(manifestStore.getActiveManifest());
+  });
+
+  app.get("/api/sync/notification", (_request, response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.json(syncNotifications.getSnapshot());
+  });
+
+  app.post("/api/manifest/displayed", async (request, response, next) => {
+    try {
+      const activeManifest = manifestStore.getActiveManifest();
+
+      if (
+        request.body?.manifestId !== activeManifest.id ||
+        request.body?.manifestVersion !== activeManifest.version
+      ) {
+        response.status(409).json({ error: "Displayed manifest is no longer active" });
+        return;
+      }
+
+      await assetCache.deleteAssetsNotInManifest(activeManifest);
+      syncNotifications.markDisplayed(activeManifest);
+      response.status(204).send();
+    } catch (error) {
+      next(error);
+    }
   });
 
   mountDisplayApp(app, config.displayDistPath);
