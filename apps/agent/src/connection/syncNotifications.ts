@@ -25,6 +25,7 @@ export interface SyncNotificationManager {
   markDisplayed(manifest: Manifest): void;
   showActivating(details: ManifestNotificationDetails): void;
   showAssignmentReceived(details: ManifestNotificationDetails): void;
+  showAssignmentSignal(): void;
   showChecking(details: ManifestNotificationDetails): void;
   showDownload(details: ManifestNotificationDetails): void;
   showFailure(details: FailureNotificationDetails): void;
@@ -89,6 +90,19 @@ export function createSyncNotificationManager(): SyncNotificationManager {
         phase: "assignment_received",
         progress: details.progress ?? null,
         title: "New display assignment received",
+      });
+    },
+
+    showAssignmentSignal(): void {
+      currentNotification = createNotification({
+        detail: null,
+        expiresAt: null,
+        level: "info",
+        manifest: null,
+        message: "The server notified this display that new content is available.",
+        phase: "assignment_signal_received",
+        progress: null,
+        title: "Assignment update received",
       });
     },
 

@@ -1,5 +1,6 @@
 import { readConfig } from "./config.js";
 import { createClientConnection } from "./connection/clientConnection.js";
+import { createClientLiveUpdateConnection } from "./connection/clientLiveUpdates.js";
 import { createClientConnectionStatus } from "./connection/connectionStatus.js";
 import { createManifestSynchronizer } from "./connection/manifestSync.js";
 import { createClientServerApi } from "./connection/serverApi.js";
@@ -16,6 +17,10 @@ async function startAgent(): Promise<void> {
   const manifestStore = createManifestStore(paths);
   const connectionStatus = createClientConnectionStatus();
   const syncNotifications = createSyncNotificationManager();
+  const liveUpdates = createClientLiveUpdateConnection({
+    config,
+    notifications: syncNotifications,
+  });
   const identityStore = createClientIdentityStore(paths.identityPath);
   const serverApi = createClientServerApi(
     config.serverBaseUrl,
@@ -36,6 +41,7 @@ async function startAgent(): Promise<void> {
     api: serverApi,
     config,
     identityStore,
+    liveUpdates,
     manifestStore,
     manifestSynchronizer,
     status: connectionStatus,
