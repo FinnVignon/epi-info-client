@@ -3,6 +3,7 @@ export type SyncNotificationLevel = "error" | "info" | "success";
 export type SyncNotificationPhase =
   | "activating"
   | "assignment_received"
+  | "assignment_signal_received"
   | "checking"
   | "displaying"
   | "downloading"

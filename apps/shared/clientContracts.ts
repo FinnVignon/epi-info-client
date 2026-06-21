@@ -28,3 +28,17 @@ export interface ClientHeartbeatResponse {
 export interface EffectiveManifestResponse {
   manifest: Manifest | null;
 }
+
+export interface ClientLiveServerHelloEvent {
+  serverTime: string;
+  service: "epi-info-server";
+  type: "server.hello";
+}
+
+export interface ClientLiveAssignmentChangedEvent {
+  clientId: string;
+  sentAt: string;
+  type: "assignment.changed";
+}
+
+export type ClientLiveEvent = ClientLiveAssignmentChangedEvent | ClientLiveServerHelloEvent;

@@ -57,6 +57,11 @@ The local display starts before server enrollment or heartbeat attempts. If the
 server is unavailable, the display remains available and the agent retries with
 bounded exponential backoff.
 
+After enrollment, the agent also keeps an authenticated WebSocket connection to
+the server for live assignment-change notifications. The WebSocket is only a
+wake-up signal: if it is unavailable, the client keeps using heartbeat sync and
+cached local playback.
+
 Manifest media is downloaded to a temporary file, checked against its expected
 SHA-256 hash, and only then made available to the display. The previous active
 manifest remains unchanged if synchronization fails. After a new manifest is

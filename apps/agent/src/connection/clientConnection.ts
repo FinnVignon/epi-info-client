@@ -2,6 +2,7 @@ import type { ClientConfig } from "../config.js";
 import type { ClientIdentity, ClientIdentityStore } from "../storage/clientIdentityStore.js";
 import type { ManifestStore } from "../storage/manifestStore.js";
 import type { ClientConnectionStatus } from "./connectionStatus.js";
+import type { ClientLiveUpdateConnection } from "./clientLiveUpdates.js";
 import type { ManifestSynchronizer } from "./manifestSync.js";
 import { ServerApiError, type ClientServerApi } from "./serverApi.js";
 
@@ -14,6 +15,7 @@ interface ClientConnectionDependencies {
   api: ClientServerApi;
   config: ClientConfig;
   identityStore: ClientIdentityStore;
+  liveUpdates: ClientLiveUpdateConnection;
   manifestStore: ManifestStore;
   manifestSynchronizer: ManifestSynchronizer;
   status: ClientConnectionStatus;
@@ -23,11 +25,13 @@ export function createClientConnection({
   api,
   config,
   identityStore,
+  liveUpdates,
   manifestStore,
   manifestSynchronizer,
   status,
 }: ClientConnectionDependencies): ClientConnection {
   let retrySeconds = config.retryMinSeconds;
+  let shouldNotifyNextSyncFailure = false;
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
 
@@ -42,6 +46,8 @@ export function createClientConnection({
         clearTimeout(timer);
         timer = null;
       }
+
+      liveUpdates.stop();
     },
   };
 
@@ -54,6 +60,7 @@ export function createClientConnection({
           clientId: identity.clientId,
           state: "connecting",
         });
+        startLiveUpdates(identity);
         scheduleHeartbeat(identity, 0);
         return;
       }
@@ -114,6 +121,7 @@ export function createClientConnection({
       await identityStore.save(identity);
       retrySeconds = config.retryMinSeconds;
       console.info(`Client enrollment completed for ${identity.clientId}`);
+      startLiveUpdates(identity);
       scheduleHeartbeat(identity, 0);
     } catch (error) {
       const message = readErrorMessage(error);
@@ -205,6 +213,11 @@ export function createClientConnection({
       return;
     }
 
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+
     const normalizedDelaySeconds = Math.max(0, delaySeconds);
 
     status.update({
@@ -233,17 +246,33 @@ export function createClientConnection({
     lastSyncResult: string;
   }> {
     try {
-      return await manifestSynchronizer.sync(identity);
+      const result = await manifestSynchronizer.sync(identity, {
+        notifyFailureWithoutManifest: shouldNotifyNextSyncFailure,
+      });
+
+      shouldNotifyNextSyncFailure = false;
+
+      return result;
     } catch (error) {
       const message = readErrorMessage(error);
 
       console.warn(`Client manifest sync failed: ${message}`);
+      shouldNotifyNextSyncFailure = false;
 
       return {
         lastError: message,
         lastSyncResult: "sync_failed",
       };
     }
+  }
+
+  function startLiveUpdates(identity: ClientIdentity): void {
+    liveUpdates.start(identity, {
+      onAssignmentChanged: () => {
+        shouldNotifyNextSyncFailure = true;
+        scheduleHeartbeat(identity, 0);
+      },
+    });
   }
 }
 

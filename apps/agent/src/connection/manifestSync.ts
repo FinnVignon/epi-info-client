@@ -10,8 +10,12 @@ export interface ManifestSyncResult {
   lastSyncResult: "activated" | "no_assignment" | "up_to_date";
 }
 
+export interface ManifestSyncOptions {
+  notifyFailureWithoutManifest?: boolean;
+}
+
 export interface ManifestSynchronizer {
-  sync(identity: ClientIdentity): Promise<ManifestSyncResult>;
+  sync(identity: ClientIdentity, options?: ManifestSyncOptions): Promise<ManifestSyncResult>;
 }
 
 interface ManifestSynchronizerDependencies {
@@ -30,7 +34,10 @@ export function createManifestSynchronizer({
   let verifiedManifestKey: string | null = null;
 
   return {
-    async sync(identity: ClientIdentity): Promise<ManifestSyncResult> {
+    async sync(
+      identity: ClientIdentity,
+      options: ManifestSyncOptions = {},
+    ): Promise<ManifestSyncResult> {
       let syncingManifest: Manifest | null = null;
 
       try {
@@ -112,7 +119,7 @@ export function createManifestSynchronizer({
           lastSyncResult: isCurrentManifest ? "up_to_date" : "activated",
         };
       } catch (error) {
-        if (syncingManifest) {
+        if (syncingManifest || options.notifyFailureWithoutManifest) {
           notifications.showFailure({
             error: readErrorMessage(error),
             manifest: syncingManifest,
