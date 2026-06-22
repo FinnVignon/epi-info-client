@@ -2,87 +2,95 @@
 
 Display client for Epi Info.
 
-This repository contains:
+Use this repository to run one screen client. The client enrolls with the server once, stores its identity locally, downloads assigned content, and keeps displaying the last valid content when the server is unavailable.
 
-- a local Node.js agent;
-- a React display app;
-- one-time enrollment with the Epi Info server;
-- persistent client identity and authenticated heartbeats;
-- persistent local caching for manifests and assets;
-- temporary sync notifications on the local display;
-- Docker runtime support for screen devices;
-- Chromium kiosk integration guidance.
+## Requirements
 
-## Development
+- Docker and Docker Compose
+- a running `epi-info-server`
+- npm, only for local development without Docker
 
-```sh
-npm install
-npm run dev
-```
+## Start With Docker
 
-Run the display UI in another terminal:
+Create the shared Docker network once:
 
 ```sh
-npm run dev:display
+docker network create epi-info-network
 ```
 
-## Docker
-
-Generate a client enrollment token from the server admin Clients screen. Put it in
-the client repository's local `.env` file together with a recognizable display
-name:
+Generate an enrollment token from the server admin panel, then create a local `.env` file in this repository:
 
 ```sh
 CLIENT_NAME=Lobby display
 CLIENT_ENROLLMENT_TOKEN=the-single-use-token
 ```
 
-Then start the client:
+Start the client:
 
 ```sh
-docker network create epi-info-network
 docker compose up --build
 ```
 
-The local display endpoint listens on `http://localhost:3000`.
-The network creation command is only needed once. Both the server and client
-Compose stacks join `epi-info-network`, and the client reaches the API through
-the stable `http://epi-info-server:4000` container hostname.
+Open the local display:
 
-The client stores its identity in the `client-data` Docker volume. After the
-first successful enrollment, remove `CLIENT_ENROLLMENT_TOKEN` from `.env`; the
-stored identity is reused across container restarts.
+```text
+http://localhost:3000
+```
 
-The local display starts before server enrollment or heartbeat attempts. If the
-server is unavailable, the display remains available and the agent retries with
-bounded exponential backoff.
+After the first successful enrollment, remove `CLIENT_ENROLLMENT_TOKEN` from `.env`. The client identity is stored in the Docker volume and reused after restarts.
 
-After enrollment, the agent also keeps an authenticated WebSocket connection to
-the server for live assignment-change notifications. The WebSocket is only a
-wake-up signal: if it is unavailable, the client keeps using heartbeat sync and
-cached local playback.
+## Offline Behavior
 
-Manifest media is downloaded to a temporary file, checked against its expected
-SHA-256 hash, and only then made available to the display. The previous active
-manifest remains unchanged if synchronization fails. After a new manifest is
-activated and the display confirms that it rendered the new content, cached
-media that it no longer references is removed. Large media downloads use
-`CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS`, which defaults to five minutes.
+The client stores its active manifest and downloaded assets locally. If the server is offline, the network fails, or the client restarts, it keeps displaying the last valid content.
 
-When the agent receives a changed assignment from the server, the display shows
-a small overlay. The overlay stays visible while the client checks, downloads,
-verifies, activates, and waits for the screen to render the new manifest. After
-the display confirms that the new content rendered, the overlay switches to
-success and clears after about one second. If the update fails, the overlay
-switches to a failure state and remains visible until the next sync replaces it.
-Cached content continues playing behind the overlay.
+New content is activated only after every required asset has downloaded and passed verification.
 
-## Local Agent API
+## Content Supported In 1.0
 
-- `GET /api/health` reports local display and server-connection status without
-  exposing the client secret.
-- `GET /api/manifest` returns the active local manifest.
-- `GET /api/sync/notification` returns the current temporary sync notification,
-  or `null` when the client is idle.
-- `POST /api/manifest/displayed` confirms that the local display rendered the
-  active manifest and allows obsolete cached media to be removed.
+- uploaded images;
+- uploaded videos;
+- live web links with a refresh interval.
+
+Text content and playlists are planned after 1.0.
+
+## Useful Commands
+
+Install dependencies:
+
+```sh
+npm install
+```
+
+Run the agent locally:
+
+```sh
+npm run dev
+```
+
+Run the display UI locally:
+
+```sh
+npm run dev:display
+```
+
+Run checks:
+
+```sh
+npm run lint
+npm test
+npm audit --audit-level=low
+```
+
+Check local client status:
+
+```text
+http://localhost:3000/api/health
+```
+
+Stop Docker containers:
+
+```sh
+docker compose down
+```
+
+To reset local client identity and cached content, remove the Docker volume intentionally.
