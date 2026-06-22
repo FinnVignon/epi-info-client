@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import type { ManifestItem } from "../../../shared/contracts";
 
@@ -32,16 +32,51 @@ export function DisplayItem({ item, onDisplayed }: DisplayItemProps) {
       );
     case "text":
       return <TextDisplayItem onDisplayed={onDisplayed} text={item.text} />;
-    case "webpage":
+    case "live_web_link":
       return (
-        <iframe
-          className="display-webpage"
-          onLoad={onDisplayed}
-          src={item.url}
-          title="Epi Info web page item"
+        <LiveWebLinkDisplayItem
+          onDisplayed={onDisplayed}
+          refreshSeconds={item.refreshSeconds}
+          url={item.url}
         />
       );
   }
+}
+
+function LiveWebLinkDisplayItem({
+  onDisplayed,
+  refreshSeconds,
+  url,
+}: {
+  onDisplayed: () => void;
+  refreshSeconds: number;
+  url: string;
+}) {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    setRefreshKey(0);
+  }, [url, refreshSeconds]);
+
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => setRefreshKey((currentKey) => currentKey + 1),
+      Math.max(1, refreshSeconds) * 1000,
+    );
+
+    return () => window.clearInterval(interval);
+  }, [refreshSeconds]);
+
+  return (
+    <iframe
+      key={`${url}:${refreshKey}`}
+      className="display-live-web-link"
+      onLoad={onDisplayed}
+      sandbox="allow-forms allow-same-origin allow-scripts"
+      src={url}
+      title="Epi Info live web link item"
+    />
+  );
 }
 
 function TextDisplayItem({ onDisplayed, text }: { onDisplayed: () => void; text: string }) {

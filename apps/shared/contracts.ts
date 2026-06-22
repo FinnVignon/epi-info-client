@@ -1,4 +1,4 @@
-export const SUPPORTED_MANIFEST_ITEM_TYPES = ["image", "video", "text", "webpage"] as const;
+export const SUPPORTED_MANIFEST_ITEM_TYPES = ["image", "video", "text", "live_web_link"] as const;
 
 export type ManifestItemType = (typeof SUPPORTED_MANIFEST_ITEM_TYPES)[number];
 
@@ -24,12 +24,13 @@ export interface TextManifestItem extends BaseManifestItem {
   type: "text";
 }
 
-export interface WebPageManifestItem extends BaseManifestItem {
-  type: "webpage";
+export interface LiveWebLinkManifestItem extends BaseManifestItem {
+  refreshSeconds: number;
+  type: "live_web_link";
   url: string;
 }
 
-export type ManifestItem = MediaManifestItem | TextManifestItem | WebPageManifestItem;
+export type ManifestItem = MediaManifestItem | TextManifestItem | LiveWebLinkManifestItem;
 
 export interface Manifest {
   id: string;
@@ -37,4 +38,3 @@ export interface Manifest {
   name: string;
   version: number;
 }
-

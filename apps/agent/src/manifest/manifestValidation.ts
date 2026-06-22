@@ -56,7 +56,27 @@ function isManifestItem(value: unknown): value is ManifestItem {
     return typeof item.text === "string";
   }
 
-  return item.type === "webpage" && typeof item.url === "string" && item.url.length > 0;
+  return (
+    item.type === "live_web_link" &&
+    isHttpUrl(item.url) &&
+    Number.isSafeInteger(item.refreshSeconds) &&
+    typeof item.refreshSeconds === "number" &&
+    item.refreshSeconds > 0
+  );
+}
+
+function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) {
+    return false;
+  }
+
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function isSafeLocalAssetPath(value: unknown): value is string {

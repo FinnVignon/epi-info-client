@@ -1,4 +1,3 @@
-import cors from "cors";
 import express from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -31,16 +30,13 @@ export async function startLocalDisplayServer({
 }: LocalDisplayServerDependencies): Promise<Server> {
   const app = express();
 
-  app.use(cors());
   app.use(express.json());
   app.use("/assets", express.static(paths.assetsPath));
 
   app.get("/api/health", (_request, response) => {
     response.json({
-      activeManifestPath: paths.activeManifestPath,
       connection: connectionStatus.getSnapshot(),
       kioskUrl: config.kioskUrl,
-      serverBaseUrl: config.serverBaseUrl,
       service: "epi-info-client-agent",
       supportedManifestItemTypes: SUPPORTED_MANIFEST_ITEM_TYPES,
     });
