@@ -1,6 +1,7 @@
 services:
   client:
     build: .
+    restart: unless-stopped
     environment:
       CLIENT_DATA_PATH: /data
       CLIENT_DISPLAY_PORT: 3000

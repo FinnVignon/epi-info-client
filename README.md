@@ -8,6 +8,7 @@ Use this repository to run one screen client. The client enrolls with the server
 
 - Docker and Docker Compose
 - a running `epi-info-server`
+- Chromium, for kiosk display on a screen device
 - npm, only for local development without Docker
 
 ## Start With Docker
@@ -28,7 +29,7 @@ CLIENT_ENROLLMENT_TOKEN=the-single-use-token
 Start the client:
 
 ```sh
-docker compose up --build
+docker compose up -d --build
 ```
 
 Open the local display:
@@ -38,6 +39,35 @@ http://localhost:3000
 ```
 
 After the first successful enrollment, remove `CLIENT_ENROLLMENT_TOKEN` from `.env`. The client identity is stored in the Docker volume and reused after restarts.
+
+The Docker service uses `restart: unless-stopped`, so after it has been started once it will come back after a reboot or container crash.
+
+## Kiosk Startup
+
+The Docker container serves the display, but Chromium runs on the device itself. On a Raspberry Pi or other screen device, install the host kiosk launcher:
+
+```sh
+sudo install -m 0755 scripts/start-kiosk.sh /usr/local/bin/epi-info-kiosk
+mkdir -p ~/.config/systemd/user
+cp systemd/epi-info-kiosk.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now epi-info-kiosk.service
+```
+
+The kiosk service opens Chromium fullscreen at:
+
+```text
+http://localhost:3000
+```
+
+The service waits for the local display to answer, starts Chromium in kiosk mode, and restarts Chromium if it closes. The device must boot into a graphical session for Chromium to open automatically.
+
+Useful kiosk commands:
+
+```sh
+systemctl --user restart epi-info-kiosk.service
+systemctl --user status epi-info-kiosk.service
+```
 
 ## Offline Behavior
 
