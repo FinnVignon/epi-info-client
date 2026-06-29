@@ -23,7 +23,7 @@ docker network create epi-info-network
 Clone or update the repository:
 
 ```sh
-git clone <client-repository-url> epi-info-client
+git clone https://github.com/FinnVignon/epi-info-client epi-info-client
 cd epi-info-client
 ```
 
