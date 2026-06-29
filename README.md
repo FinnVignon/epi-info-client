@@ -9,9 +9,10 @@ Use this repository to run one screen client. The client enrolls with the server
 - Docker and Docker Compose
 - a running `epi-info-server`
 - Chromium, for kiosk display on a screen device
+- Git, for repository installs
 - npm, only for local development without Docker
 
-## Start With Docker
+## Run From The Repository
 
 Create the shared Docker network once:
 
@@ -19,11 +20,25 @@ Create the shared Docker network once:
 docker network create epi-info-network
 ```
 
+Clone or update the repository:
+
+```sh
+git clone <client-repository-url> epi-info-client
+cd epi-info-client
+```
+
+If the repository is already cloned, update it instead:
+
+```sh
+git pull
+```
+
 Generate an enrollment token from the server admin panel, then create a local `.env` file in this repository:
 
 ```sh
 CLIENT_NAME=Lobby display
 CLIENT_ENROLLMENT_TOKEN=the-single-use-token
+SERVER_BASE_URL=http://YOUR_SERVER_IP:4000
 ```
 
 Start the client:
@@ -32,11 +47,61 @@ Start the client:
 docker compose up -d --build
 ```
 
+## Run From Docker Hub
+
+Create a folder for the client deployment:
+
+```sh
+mkdir epi-info-client
+cd epi-info-client
+```
+
+Pull the published image:
+
+```sh
+docker pull shortplanet/epi-info-client:1.0.0
+```
+
+Generate an enrollment token from the server admin panel, then create `.env`:
+
+```env
+CLIENT_DATA_PATH=/data
+CLIENT_DISPLAY_BIND_ADDRESS=127.0.0.1
+CLIENT_DISPLAY_PORT=3000
+DISPLAY_DIST_PATH=/app/dist/display
+
+SERVER_BASE_URL=http://YOUR_SERVER_IP:4000
+CLIENT_NAME=Lobby display
+CLIENT_ENROLLMENT_TOKEN=the-single-use-token
+
+CLIENT_SOFTWARE_VERSION=1.0.0
+CLIENT_HEARTBEAT_INTERVAL_SECONDS=30
+CLIENT_REQUEST_TIMEOUT_MS=10000
+CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS=300000
+CLIENT_RETRY_MIN_SECONDS=5
+CLIENT_RETRY_MAX_SECONDS=60
+KIOSK_URL=http://localhost:3000
+```
+
+Start the client:
+
+```sh
+docker run -d \
+  --name epi-info-client \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 127.0.0.1:3000:3000 \
+  -v epi-info-client-data:/data \
+  shortplanet/epi-info-client:1.0.0
+```
+
 Open the local display:
 
 ```text
 http://localhost:3000
 ```
+
+The display port is bound to `127.0.0.1` by default. For remote debugging only, set `CLIENT_DISPLAY_BIND_ADDRESS=0.0.0.0` in `.env`.
 
 After the first successful enrollment, remove `CLIENT_ENROLLMENT_TOKEN` from `.env`. The client identity is stored in the Docker volume and reused after restarts.
 
