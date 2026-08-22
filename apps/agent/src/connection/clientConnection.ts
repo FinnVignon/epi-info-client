@@ -4,7 +4,8 @@ import type { ManifestStore } from "../storage/manifestStore.js";
 import type { ClientConnectionStatus } from "./connectionStatus.js";
 import type { ClientLiveUpdateConnection } from "./clientLiveUpdates.js";
 import type { ManifestSynchronizer } from "./manifestSync.js";
-import { ServerApiError, type ClientServerApi } from "./serverApi.js";
+import type { ClientServerApi } from "./serverApi.js";
+import { ServerApiError } from "./serverApiError.js";
 
 export interface ClientConnection {
   start(): void;

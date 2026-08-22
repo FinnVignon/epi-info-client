@@ -9,18 +9,14 @@ import type {
   RegisterClientRequest,
   RegisterClientResponse,
 } from "../../../shared/clientContracts.js";
-import { isManifest } from "../manifest/manifestValidation.js";
 import type { ClientIdentity } from "../storage/clientIdentityStore.js";
-
-export class ServerApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number | null,
-    public readonly retryAfterSeconds: number | null = null,
-  ) {
-    super(message);
-  }
-}
+import { resolveServerAssetUrl } from "./serverAssetUrls.js";
+import { ServerApiError } from "./serverApiError.js";
+import {
+  readEffectiveManifestResponse,
+  readHeartbeatResponse,
+  readRegistrationResponse,
+} from "./serverResponseReaders.js";
 
 export interface ClientServerApi {
   downloadAsset(
@@ -204,82 +200,6 @@ async function requestJson(
   }
 }
 
-function readRegistrationResponse(value: unknown): RegisterClientResponse {
-  if (typeof value !== "object" || value === null) {
-    throw new ServerApiError("Server returned an invalid registration response", 200);
-  }
-
-  const response = value as Partial<RegisterClientResponse>;
-
-  if (
-    typeof response.clientId !== "string" ||
-    response.clientId.length === 0 ||
-    typeof response.clientSecret !== "string" ||
-    response.clientSecret.length < 32 ||
-    !isPositiveInteger(response.heartbeatIntervalSeconds)
-  ) {
-    throw new ServerApiError("Server returned an invalid registration response", 200);
-  }
-
-  return {
-    clientId: response.clientId,
-    clientSecret: response.clientSecret,
-    heartbeatIntervalSeconds: response.heartbeatIntervalSeconds,
-  };
-}
-
-function readHeartbeatResponse(value: unknown): ClientHeartbeatResponse {
-  if (typeof value !== "object" || value === null) {
-    throw new ServerApiError("Server returned an invalid heartbeat response", 200);
-  }
-
-  const response = value as Partial<ClientHeartbeatResponse>;
-
-  if (
-    !isPositiveInteger(response.heartbeatIntervalSeconds) ||
-    typeof response.serverTime !== "string" ||
-    Number.isNaN(Date.parse(response.serverTime))
-  ) {
-    throw new ServerApiError("Server returned an invalid heartbeat response", 200);
-  }
-
-  return {
-    heartbeatIntervalSeconds: response.heartbeatIntervalSeconds,
-    serverTime: response.serverTime,
-  };
-}
-
-function readEffectiveManifestResponse(value: unknown): EffectiveManifestResponse {
-  if (typeof value !== "object" || value === null || !("manifest" in value)) {
-    throw new ServerApiError("Server returned an invalid manifest response", 200);
-  }
-
-  const response = value as Partial<EffectiveManifestResponse>;
-
-  if (response.manifest !== null && !isManifest(response.manifest)) {
-    throw new ServerApiError("Server returned an invalid manifest response", 200);
-  }
-
-  return {
-    manifest: response.manifest ?? null,
-  };
-}
-
-function resolveServerAssetUrl(serverBaseUrl: string, remoteUrl: string): string {
-  const baseUrl = new URL(`${serverBaseUrl}/`);
-  const assetUrl = new URL(remoteUrl, baseUrl);
-
-  if (assetUrl.origin !== baseUrl.origin) {
-    throw new ServerApiError("Manifest asset URL must use the configured server origin", 200);
-  }
-
-  if (!assetUrl.pathname.startsWith("/api/clients/assets/")) {
-    throw new ServerApiError("Manifest asset URL is not a client asset endpoint", 200);
-  }
-
-  return assetUrl.toString();
-}
-
 async function readResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
 
@@ -311,8 +231,4 @@ function readRetryAfterSeconds(value: string | null): number | null {
   const seconds = Number.parseInt(value, 10);
 
   return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return Number.isSafeInteger(value) && typeof value === "number" && value > 0;
 }
