@@ -5,6 +5,7 @@ export interface ClientConfig {
   clientName: string;
   dataPath: string;
   displayDistPath?: string;
+  displayHost: string;
   displayPort: number;
   enrollmentToken?: string;
   heartbeatIntervalSeconds: number;
@@ -56,6 +57,7 @@ export function readConfig(): ClientConfig {
     clientName: process.env.CLIENT_NAME?.trim() || "Epi Info Display",
     dataPath: process.env.CLIENT_DATA_PATH ?? "./data",
     displayDistPath: process.env.DISPLAY_DIST_PATH,
+    displayHost: process.env.CLIENT_DISPLAY_HOST?.trim() || "127.0.0.1",
     displayPort: readPositiveNumber("CLIENT_DISPLAY_PORT", 3000),
     ...(enrollmentToken ? { enrollmentToken } : {}),
     heartbeatIntervalSeconds: readPositiveNumber("CLIENT_HEARTBEAT_INTERVAL_SECONDS", 30),
