@@ -8,11 +8,9 @@ reporting a problem that may already be fixed.
 ## Reporting A Vulnerability
 
 Do not open a public issue with exploit details, client secrets, enrollment tokens, personal data,
-or displayed content. Use the repository's private vulnerability reporting option under \*\*Security
-
-> Advisories > Report a vulnerability\*\*. Include the affected version, hardware/OS, reproduction
-> steps, expected security boundary, and impact. Use placeholder credentials and the smallest safe
-> proof of concept.
+or displayed content. Use the repository's private **Report a vulnerability** option under the
+Security advisories page. Include the affected version, hardware/OS, reproduction steps, expected
+security boundary, and impact. Use placeholder credentials and the smallest safe proof of concept.
 
 If private vulnerability reporting is unavailable, contact the repository owner privately before
 sharing technical details. Do not test against displays or servers you do not own or administer.

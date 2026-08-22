@@ -9,6 +9,7 @@
 - Package kiosk and systemd support files in the client image.
 - Add container health checks and consistent `1.0.1` status reporting.
 - Add automated tests, CI checks, container smoke tests, and maintainer guidance.
+- Pin CI actions to immutable revisions and exclude local client data from Docker build contexts.
 
 ## 1.0.0
 
