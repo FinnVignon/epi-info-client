@@ -66,6 +66,6 @@ export function readConfig(): ClientConfig {
     retryMaxSeconds,
     retryMinSeconds,
     serverBaseUrl: (process.env.SERVER_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, ""),
-    softwareVersion: process.env.CLIENT_SOFTWARE_VERSION?.trim() || "0.1.0",
+    softwareVersion: process.env.CLIENT_SOFTWARE_VERSION?.trim() || "1.0.1",
   };
 }
