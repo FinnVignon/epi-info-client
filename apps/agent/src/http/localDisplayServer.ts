@@ -31,7 +31,7 @@ export async function startLocalDisplayServer({
   const app = express();
 
   app.use(express.json());
-  app.use("/assets", express.static(paths.assetsPath));
+  app.use("/assets", express.static(paths.assetsPath, { dotfiles: "deny" }));
 
   app.get("/api/health", (_request, response) => {
     response.json({
@@ -75,8 +75,10 @@ export async function startLocalDisplayServer({
   mountDisplayApp(app, config.displayDistPath);
 
   return new Promise((resolve, reject) => {
-    const server = app.listen(config.displayPort, () => {
-      console.info(`Epi Info client agent listening on port ${config.displayPort}`);
+    const server = app.listen(config.displayPort, config.displayHost, () => {
+      console.info(
+        `Epi Info client agent listening on ${config.displayHost}:${config.displayPort}`,
+      );
       resolve(server);
     });
 

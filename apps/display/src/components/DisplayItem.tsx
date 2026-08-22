@@ -72,6 +72,7 @@ function LiveWebLinkDisplayItem({
       key={`${url}:${refreshKey}`}
       className="display-live-web-link"
       onLoad={onDisplayed}
+      referrerPolicy="no-referrer"
       sandbox="allow-forms allow-same-origin allow-scripts"
       src={url}
       title="Epi Info live web link item"
