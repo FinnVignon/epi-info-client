@@ -151,7 +151,7 @@ The client stores its active manifest and downloaded assets locally. If the serv
 
 New content is activated only after every required asset has downloaded and passed verification.
 
-## Content Supported In 1.0
+## Content Supported In 1.0.x
 
 - uploaded images;
 - uploaded videos;
