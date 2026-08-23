@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          cache: npm
+          node-version: 24
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=low
+
+  docker-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build the client image
+        run: docker build --tag epi-info-client:ci .
+      - name: Start the offline-capable client
+        run: |
+          docker run --detach \
+            --name epi-info-client-ci \
+            --publish 127.0.0.1:3000:3000 \
+            epi-info-client:ci
+      - name: Wait for the local display agent
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs epi-info-client-ci
+          exit 1
+      - name: Stop the client
+        if: always()
+        run: docker rm --force epi-info-client-ci

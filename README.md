@@ -59,7 +59,7 @@ cd epi-info-client
 Pull the published image:
 
 ```sh
-docker pull shortplanet/epi-info-client:1.0.0
+docker pull shortplanet/epi-info-client:1.0.1
 ```
 
 Generate an enrollment token from the server admin panel, then create `.env`:
@@ -67,6 +67,7 @@ Generate an enrollment token from the server admin panel, then create `.env`:
 ```env
 CLIENT_DATA_PATH=/data
 CLIENT_DISPLAY_BIND_ADDRESS=127.0.0.1
+CLIENT_DISPLAY_HOST=0.0.0.0
 CLIENT_DISPLAY_PORT=3000
 DISPLAY_DIST_PATH=/app/dist/display
 
@@ -74,7 +75,7 @@ SERVER_BASE_URL=http://YOUR_SERVER_IP:4000
 CLIENT_NAME=Lobby display
 CLIENT_ENROLLMENT_TOKEN=the-single-use-token
 
-CLIENT_SOFTWARE_VERSION=1.0.0
+CLIENT_SOFTWARE_VERSION=1.0.1
 CLIENT_HEARTBEAT_INTERVAL_SECONDS=30
 CLIENT_REQUEST_TIMEOUT_MS=10000
 CLIENT_ASSET_DOWNLOAD_TIMEOUT_MS=300000
@@ -92,7 +93,7 @@ docker run -d \
   --env-file .env \
   -p 127.0.0.1:3000:3000 \
   -v epi-info-client-data:/data \
-  shortplanet/epi-info-client:1.0.0
+  shortplanet/epi-info-client:1.0.1
 ```
 
 Open the local display:
@@ -110,6 +111,16 @@ The Docker service uses `restart: unless-stopped`, so after it has been started 
 ## Kiosk Startup
 
 The Docker container serves the display, but Chromium runs on the device itself. On a Raspberry Pi or other screen device, install the host kiosk launcher:
+
+Docker Hub-only installations can extract the launcher and service from the running container:
+
+```sh
+mkdir -p scripts systemd
+docker cp epi-info-client:/app/support/scripts/start-kiosk.sh scripts/
+docker cp epi-info-client:/app/support/systemd/epi-info-kiosk.service systemd/
+```
+
+Repository installations already contain these files. Install them on the host:
 
 ```sh
 sudo install -m 0755 scripts/start-kiosk.sh /usr/local/bin/epi-info-kiosk
@@ -140,7 +151,7 @@ The client stores its active manifest and downloaded assets locally. If the serv
 
 New content is activated only after every required asset has downloaded and passed verification.
 
-## Content Supported In 1.0
+## Content Supported In 1.0.x
 
 - uploaded images;
 - uploaded videos;
@@ -189,3 +200,7 @@ docker compose down
 ```
 
 To reset local client identity and cached content, remove the Docker volume intentionally.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the offline runtime design,
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, and
+[SECURITY.md](SECURITY.md) for vulnerability reporting.
