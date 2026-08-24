@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import { SUPPORTED_MANIFEST_ITEM_TYPES } from "../../../shared/contracts.js";
 import type { ClientConfig } from "../config.js";
 import type { ClientConnectionStatus } from "../connection/connectionStatus.js";
+import type { ClientPairingStatus } from "../connection/clientPairingStatus.js";
 import type { SyncNotificationManager } from "../connection/syncNotifications.js";
 import type { AssetCache } from "../storage/assetCache.js";
 import type { ClientPaths } from "../storage/clientPaths.js";
@@ -16,6 +17,7 @@ interface LocalDisplayServerDependencies {
   config: ClientConfig;
   connectionStatus: ClientConnectionStatus;
   manifestStore: ManifestStore;
+  pairingStatus: ClientPairingStatus;
   paths: ClientPaths;
   syncNotifications: SyncNotificationManager;
 }
@@ -25,6 +27,7 @@ export async function startLocalDisplayServer({
   config,
   connectionStatus,
   manifestStore,
+  pairingStatus,
   paths,
   syncNotifications,
 }: LocalDisplayServerDependencies): Promise<Server> {
@@ -45,6 +48,11 @@ export async function startLocalDisplayServer({
   app.get("/api/manifest", (_request, response) => {
     response.setHeader("Cache-Control", "no-store");
     response.json(manifestStore.getActiveManifest());
+  });
+
+  app.get("/api/pairing", (_request, response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.json(pairingStatus.getSnapshot());
   });
 
   app.get("/api/sync/notification", (_request, response) => {

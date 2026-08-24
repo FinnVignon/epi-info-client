@@ -7,7 +7,6 @@ export interface ClientConfig {
   displayDistPath?: string;
   displayHost: string;
   displayPort: number;
-  enrollmentToken?: string;
   heartbeatIntervalSeconds: number;
   kioskUrl: string;
   requestTimeoutMs: number;
@@ -44,7 +43,6 @@ function readPositiveNumber(name: string, fallback: number): number {
 }
 
 export function readConfig(): ClientConfig {
-  const enrollmentToken = process.env.CLIENT_ENROLLMENT_TOKEN?.trim();
   const retryMaxSeconds = readPositiveNumber("CLIENT_RETRY_MAX_SECONDS", 60);
   const retryMinSeconds = readPositiveNumber("CLIENT_RETRY_MIN_SECONDS", 5);
 
@@ -59,7 +57,6 @@ export function readConfig(): ClientConfig {
     displayDistPath: process.env.DISPLAY_DIST_PATH,
     displayHost: process.env.CLIENT_DISPLAY_HOST?.trim() || "127.0.0.1",
     displayPort: readPositiveNumber("CLIENT_DISPLAY_PORT", 3000),
-    ...(enrollmentToken ? { enrollmentToken } : {}),
     heartbeatIntervalSeconds: readPositiveNumber("CLIENT_HEARTBEAT_INTERVAL_SECONDS", 30),
     kioskUrl: process.env.KIOSK_URL ?? "http://localhost:3000",
     requestTimeoutMs: readPositiveNumber("CLIENT_REQUEST_TIMEOUT_MS", 10_000),
