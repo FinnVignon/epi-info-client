@@ -2,17 +2,11 @@ import type {
   ClientHeartbeatRequest,
   ClientHeartbeatResponse,
   EffectiveManifestResponse,
-  RegisterClientRequest,
-  RegisterClientResponse,
 } from "../../../shared/clientContracts.js";
 import type { ClientIdentity } from "../storage/clientIdentityStore.js";
 import { resolveServerAssetUrl } from "./serverAssetUrls.js";
 import { downloadServerFile, requestServerJson } from "./serverRequest.js";
-import {
-  readEffectiveManifestResponse,
-  readHeartbeatResponse,
-  readRegistrationResponse,
-} from "./serverResponseReaders.js";
+import { readEffectiveManifestResponse, readHeartbeatResponse } from "./serverResponseReaders.js";
 
 export interface ClientServerApi {
   downloadAsset(
@@ -21,7 +15,6 @@ export interface ClientServerApi {
     destinationPath: string,
   ): Promise<void>;
   getEffectiveManifest(identity: ClientIdentity): Promise<EffectiveManifestResponse>;
-  register(request: RegisterClientRequest): Promise<RegisterClientResponse>;
   sendHeartbeat(
     identity: ClientIdentity,
     request: ClientHeartbeatRequest,
@@ -66,22 +59,6 @@ export function createClientServerApi(
       );
 
       return readEffectiveManifestResponse(response);
-    },
-
-    async register(request: RegisterClientRequest): Promise<RegisterClientResponse> {
-      const response = await requestServerJson(
-        `${normalizedServerBaseUrl}/api/clients/register`,
-        {
-          body: JSON.stringify(request),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        },
-        requestTimeoutMs,
-      );
-
-      return readRegistrationResponse(response);
     },
 
     async sendHeartbeat(

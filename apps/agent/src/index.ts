@@ -4,7 +4,6 @@ import { createClientHeartbeatConnection } from "./connection/clientHeartbeat.js
 import { createClientPairingController } from "./connection/clientPairing.js";
 import { createClientPairingApi } from "./connection/clientPairingApi.js";
 import { createClientPairingStatus } from "./connection/clientPairingStatus.js";
-import { createClientTokenEnrollment } from "./connection/clientTokenEnrollment.js";
 import { createClientLiveUpdateConnection } from "./connection/clientLiveUpdates.js";
 import { createClientConnectionStatus } from "./connection/connectionStatus.js";
 import { createManifestSynchronizer } from "./connection/manifestSync.js";
@@ -47,7 +46,6 @@ async function startAgent(): Promise<void> {
     notifications: syncNotifications,
   });
   const connection = createClientConnection({
-    config,
     heartbeat: createClientHeartbeatConnection({
       api: serverApi,
       config,
@@ -65,12 +63,6 @@ async function startAgent(): Promise<void> {
       status: pairingStatus,
     }),
     status: connectionStatus,
-    tokenEnrollment: createClientTokenEnrollment({
-      api: serverApi,
-      config,
-      identityStore,
-      status: connectionStatus,
-    }),
   });
   const localServer = await startLocalDisplayServer({
     assetCache,

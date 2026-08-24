@@ -1,9 +1,8 @@
 export type ClientConnectionState =
-  | "awaiting_enrollment"
+  | "awaiting_pairing"
   | "connected"
   | "connecting"
   | "disconnected"
-  | "enrollment_rejected"
   | "identity_error"
   | "persisting_identity";
 

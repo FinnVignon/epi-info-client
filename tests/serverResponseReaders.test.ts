@@ -3,23 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   readEffectiveManifestResponse,
   readHeartbeatResponse,
-  readRegistrationResponse,
 } from "../apps/agent/src/connection/serverResponseReaders.js";
 
 describe("server response readers", () => {
-  it("accepts valid registration and heartbeat responses", () => {
-    expect(
-      readRegistrationResponse({
-        clientId: "client-1",
-        clientSecret: "s".repeat(32),
-        heartbeatIntervalSeconds: 30,
-      }),
-    ).toEqual({
-      clientId: "client-1",
-      clientSecret: "s".repeat(32),
-      heartbeatIntervalSeconds: 30,
-    });
-
+  it("accepts valid heartbeat responses", () => {
     expect(
       readHeartbeatResponse({
         heartbeatIntervalSeconds: 30,
@@ -31,10 +18,7 @@ describe("server response readers", () => {
     });
   });
 
-  it("rejects malformed registration and heartbeat responses", () => {
-    expect(() => readRegistrationResponse({ clientId: "client-1", clientSecret: "short" })).toThrow(
-      "Server returned an invalid registration response",
-    );
+  it("rejects malformed heartbeat responses", () => {
     expect(() =>
       readHeartbeatResponse({ heartbeatIntervalSeconds: 0, serverTime: "invalid" }),
     ).toThrow("Server returned an invalid heartbeat response");

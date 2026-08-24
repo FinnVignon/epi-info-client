@@ -1,9 +1,7 @@
-import type { ClientConfig } from "../config.js";
 import type { ClientIdentity, ClientIdentityStore } from "../storage/clientIdentityStore.js";
 import type { ClientConnectionStatus } from "./connectionStatus.js";
 import type { ClientHeartbeatConnection } from "./clientHeartbeat.js";
 import type { ClientPairingController } from "./clientPairing.js";
-import type { ClientTokenEnrollment } from "./clientTokenEnrollment.js";
 
 export interface ClientConnection {
   start(): void;
@@ -11,21 +9,17 @@ export interface ClientConnection {
 }
 
 interface ClientConnectionDependencies {
-  config: ClientConfig;
   heartbeat: ClientHeartbeatConnection;
   identityStore: ClientIdentityStore;
   pairing: ClientPairingController;
   status: ClientConnectionStatus;
-  tokenEnrollment: ClientTokenEnrollment;
 }
 
 export function createClientConnection({
-  config,
   heartbeat,
   identityStore,
   pairing,
   status,
-  tokenEnrollment,
 }: ClientConnectionDependencies): ClientConnection {
   return {
     start(): void {
@@ -34,7 +28,6 @@ export function createClientConnection({
     stop(): void {
       heartbeat.stop();
       pairing.stop();
-      tokenEnrollment.stop();
     },
   };
 
@@ -47,13 +40,7 @@ export function createClientConnection({
         return;
       }
 
-      status.update({ state: "awaiting_enrollment" });
-
-      if (config.enrollmentToken) {
-        tokenEnrollment.start(connect);
-        return;
-      }
-
+      status.update({ state: "awaiting_pairing" });
       pairing.start(connect);
     } catch (error) {
       const message = readErrorMessage(error);
