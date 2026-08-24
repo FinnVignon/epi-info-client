@@ -63,6 +63,99 @@ body {
   font-size: 18px;
 }
 
+.pairing-screen {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 720px;
+  padding: 32px;
+  text-align: center;
+}
+
+.pairing-brand {
+  color: #5aa6ff;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 28px;
+}
+
+.pairing-screen h1,
+.pairing-overlay h1 {
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.pairing-screen h1 {
+  font-size: clamp(34px, 5vw, 64px);
+  line-height: 1.1;
+}
+
+.pairing-code {
+  background: #f7f9fb;
+  border-radius: 8px;
+  color: #101722;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: clamp(38px, 7vw, 86px);
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 36px 0 28px;
+  padding: 18px 24px;
+}
+
+.pairing-screen p {
+  color: #d6e0e9;
+  font-size: clamp(18px, 2.2vw, 28px);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pairing-screen small,
+.pairing-overlay small {
+  color: #ffb5b5;
+  line-height: 1.4;
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+}
+
+.pairing-overlay {
+  background: rgba(12, 18, 28, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 4px solid #5aa6ff;
+  border-radius: 8px;
+  bottom: 16px;
+  color: #f7f9fb;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 14px 16px;
+  position: fixed;
+  right: 16px;
+  width: 420px;
+  z-index: 9;
+}
+
+.pairing-overlay .pairing-brand {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.pairing-overlay h1 {
+  font-size: 18px;
+}
+
+.pairing-overlay .pairing-code {
+  display: inline-block;
+  font-size: 28px;
+  margin: 14px 0 8px;
+  padding: 10px 12px;
+}
+
+.pairing-overlay p {
+  color: #d6e0e9;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 4px 0 0;
+}
+
 .sync-notification {
   background: rgba(12, 18, 28, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.16);

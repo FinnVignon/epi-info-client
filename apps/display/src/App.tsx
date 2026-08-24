@@ -3,11 +3,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Manifest } from "../../shared/contracts";
 import type { SyncNotificationSnapshot } from "../../shared/localDisplayContracts";
 import {
+  LOCAL_FALLBACK_MANIFEST_ID,
+  type LocalClientPairingSnapshot,
+} from "../../shared/localPairingContracts";
+import {
   acknowledgeDisplayedManifest as sendDisplayedManifestAcknowledgement,
   loadActiveManifest,
+  loadClientPairing,
   loadSyncNotification,
 } from "./api/localAgentApi";
 import { DisplayItem } from "./components/DisplayItem";
+import { ClientPairingView } from "./components/ClientPairingView";
 import { SyncNotificationOverlay } from "./components/SyncNotificationOverlay";
 import "./App.css";
 
@@ -15,6 +21,7 @@ export function App() {
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [notification, setNotification] = useState<SyncNotificationSnapshot | null>(null);
+  const [pairing, setPairing] = useState<LocalClientPairingSnapshot | null>(null);
   const [error, setError] = useState(false);
   const acknowledgedManifestKey = useRef<string | null>(null);
   const hasManifest = useRef(false);
@@ -49,6 +56,30 @@ export function App() {
 
     void loadManifest();
     const interval = window.setInterval(() => void loadManifest(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshPairing() {
+      try {
+        const nextPairing = await loadClientPairing();
+
+        if (!cancelled) {
+          setPairing(nextPairing);
+        }
+      } catch {
+        // Existing content remains visible if the local status endpoint is temporarily unavailable.
+      }
+    }
+
+    void refreshPairing();
+    const interval = window.setInterval(() => void refreshPairing(), 1000);
 
     return () => {
       cancelled = true;
@@ -133,9 +164,21 @@ export function App() {
     );
   }
 
+  const isPairing = pairing && pairing.state !== "idle";
+  const hasAssignedContent = manifest !== null && manifest.id !== LOCAL_FALLBACK_MANIFEST_ID;
+
+  if (isPairing && !hasAssignedContent) {
+    return (
+      <main className="display-shell">
+        <ClientPairingView pairing={pairing} />
+      </main>
+    );
+  }
+
   return (
     <main className="display-shell">
       {renderDisplayContent()}
+      {isPairing ? <ClientPairingView compact pairing={pairing} /> : null}
       <SyncNotificationOverlay notification={notification} />
     </main>
   );

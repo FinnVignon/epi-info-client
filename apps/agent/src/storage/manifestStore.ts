@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rename, writeFile } from "node:fs/promises";
 
 import type { Manifest } from "../../../shared/contracts.js";
+import { LOCAL_FALLBACK_MANIFEST_ID } from "../../../shared/localPairingContracts.js";
 import { isManifest } from "../manifest/manifestValidation.js";
 import type { ClientPaths } from "./clientPaths.js";
 
 const FALLBACK_MANIFEST: Manifest = {
-  id: "local-fallback",
+  id: LOCAL_FALLBACK_MANIFEST_ID,
   items: [
     {
       durationSeconds: 30,

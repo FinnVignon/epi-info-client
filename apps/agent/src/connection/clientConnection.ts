@@ -1,11 +1,9 @@
 import type { ClientConfig } from "../config.js";
 import type { ClientIdentity, ClientIdentityStore } from "../storage/clientIdentityStore.js";
-import type { ManifestStore } from "../storage/manifestStore.js";
 import type { ClientConnectionStatus } from "./connectionStatus.js";
-import type { ClientLiveUpdateConnection } from "./clientLiveUpdates.js";
-import type { ManifestSynchronizer } from "./manifestSync.js";
-import type { ClientServerApi } from "./serverApi.js";
-import { ServerApiError } from "./serverApiError.js";
+import type { ClientHeartbeatConnection } from "./clientHeartbeat.js";
+import type { ClientPairingController } from "./clientPairing.js";
+import type { ClientTokenEnrollment } from "./clientTokenEnrollment.js";
 
 export interface ClientConnection {
   start(): void;
@@ -13,42 +11,30 @@ export interface ClientConnection {
 }
 
 interface ClientConnectionDependencies {
-  api: ClientServerApi;
   config: ClientConfig;
+  heartbeat: ClientHeartbeatConnection;
   identityStore: ClientIdentityStore;
-  liveUpdates: ClientLiveUpdateConnection;
-  manifestStore: ManifestStore;
-  manifestSynchronizer: ManifestSynchronizer;
+  pairing: ClientPairingController;
   status: ClientConnectionStatus;
+  tokenEnrollment: ClientTokenEnrollment;
 }
 
 export function createClientConnection({
-  api,
   config,
+  heartbeat,
   identityStore,
-  liveUpdates,
-  manifestStore,
-  manifestSynchronizer,
+  pairing,
   status,
+  tokenEnrollment,
 }: ClientConnectionDependencies): ClientConnection {
-  let retrySeconds = config.retryMinSeconds;
-  let shouldNotifyNextSyncFailure = false;
-  let stopped = false;
-  let timer: NodeJS.Timeout | null = null;
-
   return {
     start(): void {
       void initialize();
     },
     stop(): void {
-      stopped = true;
-
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-
-      liveUpdates.stop();
+      heartbeat.stop();
+      pairing.stop();
+      tokenEnrollment.stop();
     },
   };
 
@@ -57,230 +43,31 @@ export function createClientConnection({
       const identity = await identityStore.load();
 
       if (identity) {
-        status.update({
-          clientId: identity.clientId,
-          state: "connecting",
-        });
-        startLiveUpdates(identity);
-        scheduleHeartbeat(identity, 0);
+        connect(identity);
         return;
       }
 
-      if (!config.enrollmentToken) {
-        status.update({
-          lastError: "CLIENT_ENROLLMENT_TOKEN is required for first enrollment",
-          state: "awaiting_enrollment",
-        });
-        console.warn("Client is not enrolled. Set CLIENT_ENROLLMENT_TOKEN and restart the agent.");
+      status.update({ state: "awaiting_enrollment" });
+
+      if (config.enrollmentToken) {
+        tokenEnrollment.start(connect);
         return;
       }
 
-      scheduleEnrollment(0);
+      pairing.start(connect);
     } catch (error) {
       const message = readErrorMessage(error);
 
-      status.update({
-        lastError: message,
-        state: "identity_error",
-      });
+      status.update({ lastError: message, state: "identity_error" });
       console.error(`Unable to read client identity: ${message}`);
     }
   }
 
-  function scheduleEnrollment(delaySeconds: number): void {
-    schedule(async () => {
-      status.update({
-        lastError: null,
-        state: "connecting",
-      });
-
-      try {
-        const response = await api.register({
-          enrollmentToken: config.enrollmentToken ?? "",
-          name: config.clientName,
-          softwareVersion: config.softwareVersion,
-        });
-        const identity: ClientIdentity = {
-          clientId: response.clientId,
-          clientSecret: response.clientSecret,
-          enrolledAt: new Date().toISOString(),
-        };
-
-        status.update({
-          clientId: identity.clientId,
-          state: "persisting_identity",
-        });
-        await persistNewIdentity(identity);
-      } catch (error) {
-        handleEnrollmentFailure(error);
-      }
-    }, delaySeconds);
+  function connect(identity: ClientIdentity): void {
+    heartbeat.start(identity);
   }
-
-  async function persistNewIdentity(identity: ClientIdentity): Promise<void> {
-    try {
-      await identityStore.save(identity);
-      retrySeconds = config.retryMinSeconds;
-      console.info(`Client enrollment completed for ${identity.clientId}`);
-      startLiveUpdates(identity);
-      scheduleHeartbeat(identity, 0);
-    } catch (error) {
-      const message = readErrorMessage(error);
-
-      status.update({
-        lastError: message,
-        state: "persisting_identity",
-      });
-      console.error(`Unable to persist client identity; retrying: ${message}`);
-      schedule(() => persistNewIdentity(identity), nextRetryDelay());
-    }
-  }
-
-  function handleEnrollmentFailure(error: unknown): void {
-    const message = readErrorMessage(error);
-
-    if (error instanceof ServerApiError && (error.status === 400 || error.status === 401)) {
-      status.update({
-        lastError: message,
-        nextAttemptAt: null,
-        state: "enrollment_rejected",
-      });
-      console.error(`Client enrollment was rejected: ${message}`);
-      return;
-    }
-
-    const delaySeconds =
-      error instanceof ServerApiError && error.retryAfterSeconds
-        ? error.retryAfterSeconds
-        : nextRetryDelay();
-
-    status.update({
-      lastError: message,
-      state: "disconnected",
-    });
-    console.warn(`Client enrollment failed; retrying in ${delaySeconds}s: ${message}`);
-    scheduleEnrollment(delaySeconds);
-  }
-
-  function scheduleHeartbeat(identity: ClientIdentity, delaySeconds: number): void {
-    schedule(async () => {
-      status.update({
-        clientId: identity.clientId,
-        state: "connecting",
-      });
-
-      try {
-        const syncResult = await syncManifest(identity);
-        const manifest = manifestStore.getActiveManifest();
-        const response = await api.sendHeartbeat(identity, {
-          currentManifestId: manifest.id,
-          currentManifestVersion: manifest.version,
-          lastError: syncResult.lastError,
-          lastSyncResult: syncResult.lastSyncResult,
-          softwareVersion: config.softwareVersion,
-        });
-
-        retrySeconds = config.retryMinSeconds;
-        status.update({
-          lastError: syncResult.lastError,
-          lastSuccessfulHeartbeatAt: new Date().toISOString(),
-          state: "connected",
-        });
-        scheduleHeartbeat(
-          identity,
-          positiveSeconds(response.heartbeatIntervalSeconds, config.heartbeatIntervalSeconds),
-        );
-      } catch (error) {
-        const message = readErrorMessage(error);
-        const authenticationRejected = error instanceof ServerApiError && error.status === 401;
-        const delaySeconds = authenticationRejected
-          ? config.retryMaxSeconds
-          : error instanceof ServerApiError && error.retryAfterSeconds
-            ? error.retryAfterSeconds
-            : nextRetryDelay();
-
-        status.update({
-          lastError: message,
-          state: "disconnected",
-        });
-        console.warn(`Client heartbeat failed; retrying in ${delaySeconds}s: ${message}`);
-        scheduleHeartbeat(identity, delaySeconds);
-      }
-    }, delaySeconds);
-  }
-
-  function schedule(task: () => void | Promise<void>, delaySeconds: number): void {
-    if (stopped) {
-      return;
-    }
-
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-
-    const normalizedDelaySeconds = Math.max(0, delaySeconds);
-
-    status.update({
-      nextAttemptAt: new Date(Date.now() + normalizedDelaySeconds * 1000).toISOString(),
-    });
-    timer = setTimeout(() => {
-      timer = null;
-      status.update({ nextAttemptAt: null });
-
-      if (!stopped) {
-        void task();
-      }
-    }, normalizedDelaySeconds * 1000);
-  }
-
-  function nextRetryDelay(): number {
-    const currentDelay = retrySeconds;
-
-    retrySeconds = Math.min(config.retryMaxSeconds, retrySeconds * 2);
-
-    return currentDelay;
-  }
-
-  async function syncManifest(identity: ClientIdentity): Promise<{
-    lastError: string | null;
-    lastSyncResult: string;
-  }> {
-    try {
-      const result = await manifestSynchronizer.sync(identity, {
-        notifyFailureWithoutManifest: shouldNotifyNextSyncFailure,
-      });
-
-      shouldNotifyNextSyncFailure = false;
-
-      return result;
-    } catch (error) {
-      const message = readErrorMessage(error);
-
-      console.warn(`Client manifest sync failed: ${message}`);
-      shouldNotifyNextSyncFailure = false;
-
-      return {
-        lastError: message,
-        lastSyncResult: "sync_failed",
-      };
-    }
-  }
-
-  function startLiveUpdates(identity: ClientIdentity): void {
-    liveUpdates.start(identity, {
-      onAssignmentChanged: () => {
-        shouldNotifyNextSyncFailure = true;
-        scheduleHeartbeat(identity, 0);
-      },
-    });
-  }
-}
-
-function positiveSeconds(value: number, fallback: number): number {
-  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }
 
 function readErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown client connection error";
+  return error instanceof Error ? error.message : "Unknown client identity error";
 }

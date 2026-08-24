@@ -5,6 +5,7 @@ export interface ClientPaths {
   assetsPath: string;
   identityPath: string;
   manifestsPath: string;
+  pairingPath: string;
 }
 
 export function createClientPaths(dataPath: string): ClientPaths {
@@ -16,5 +17,6 @@ export function createClientPaths(dataPath: string): ClientPaths {
     assetsPath: path.join(resolvedDataPath, "assets"),
     identityPath: path.join(resolvedDataPath, "client-identity.json"),
     manifestsPath,
+    pairingPath: path.join(resolvedDataPath, "client-pairing.json"),
   };
 }
