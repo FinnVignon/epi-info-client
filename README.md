@@ -33,11 +33,10 @@ If the repository is already cloned, update it instead:
 git pull
 ```
 
-Generate an enrollment token from the server admin panel, then create a local `.env` file in this repository:
+Create a local `.env` file in this repository:
 
 ```sh
 CLIENT_NAME=Lobby display
-CLIENT_ENROLLMENT_TOKEN=the-single-use-token
 SERVER_BASE_URL=http://YOUR_SERVER_IP:4000
 ```
 
@@ -46,6 +45,10 @@ Start the client:
 ```sh
 docker compose up -d --build
 ```
+
+Open `http://localhost:3000` to see the connection code. In the server admin panel, open `Screens`,
+choose `Add a screen`, enter the code, and approve the screen. The client stores its permanent
+credential in the Docker volume automatically.
 
 ## Run From Docker Hub
 
@@ -62,7 +65,7 @@ Pull the published image:
 docker pull shortplanet/epi-info-client:1.0.1
 ```
 
-Generate an enrollment token from the server admin panel, then create `.env`:
+Create `.env`:
 
 ```env
 CLIENT_DATA_PATH=/data
@@ -73,7 +76,6 @@ DISPLAY_DIST_PATH=/app/dist/display
 
 SERVER_BASE_URL=http://YOUR_SERVER_IP:4000
 CLIENT_NAME=Lobby display
-CLIENT_ENROLLMENT_TOKEN=the-single-use-token
 
 CLIENT_SOFTWARE_VERSION=1.0.1
 CLIENT_HEARTBEAT_INTERVAL_SECONDS=30
@@ -102,9 +104,14 @@ Open the local display:
 http://localhost:3000
 ```
 
+The display shows a short connection code on first startup. In the server admin panel, open
+`Screens`, choose `Add a screen`, enter the code, and approve the screen.
+
 The display port is bound to `127.0.0.1` by default. For remote debugging only, set `CLIENT_DISPLAY_BIND_ADDRESS=0.0.0.0` in `.env`.
 
-After the first successful enrollment, remove `CLIENT_ENROLLMENT_TOKEN` from `.env`. The client identity is stored in the Docker volume and reused after restarts.
+The client identity is stored in the Docker volume and reused after restarts. A long
+`CLIENT_ENROLLMENT_TOKEN` can still be supplied as an advanced recovery option, but it is not part of
+normal installation.
 
 The Docker service uses `restart: unless-stopped`, so after it has been started once it will come back after a reboot or container crash.
 
